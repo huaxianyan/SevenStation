@@ -22,6 +22,40 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-060：计划任务建不起来，改成 Run 键；重启走壳命令（2026-11-22，未发版）
+
+用户装了 STATUS-059 的包，Control 反复重开都显示「执行代理：未注册」。查 Control 的日志：
+
+```
+执行代理没挂上：建不了执行代理的登录任务：错误: 拒绝访问。
+```
+
+**原因**：`schtasks /create /xml` 里那份 XML 带 `<Principals>`。非提权进程建这种任务会被计划任务
+拒绝（我这边用 SYSTEM 测所以一路通过，正好把这条路试漏了）。
+
+**改法**：不再用计划任务，改用 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`：
+
+- Control 每次启动把 `"<exe>" --runner` 写进 Run 键（写自己家的键，不需要管理员也没限制），
+  然后直接 spawn 一个代理。已经在跑时新起的那个会因为占不到管道自己退出，所以随手调是安全的。
+- 计划任务那套「跑满三天被收掉」的毛病也跟着没了。
+- 「重启」改成壳命令 `runner_restart`：`build.rs` 的 `AppManifest` 与 `capabilities/control.json`
+  两处都登记了（这次没漏）。它按命令行里的 `--runner` 认人再杀——服务用的是同一个 exe 名，
+  只按进程名会把用户正在用的服务一起带走。
+- 核心的 `/api/runner` 收窄成 `{ connected, pipe, log }`，`/api/runner/restart` 与 `RunnerTask.cs` 删掉，
+  安装包里那条 `schtasks /delete` 的卸载动作也撤了。
+
+**验证**：
+
+- 起一个 `--runner` 的 `SevenStation.Core.exe` 和一个不带参数的（同一个副本），跑 Control 里那条杀进程脚本：
+  只有 `--runner` 那个被杀，另一个和**用户正在跑的生产服务**都还在（生产那个还回了「拒绝访问」，说明没碰到）。
+- Run 键写入/读回格式对（`"<exe>" --runner`）。
+- `cargo test --release` 7 个测试全过。
+
+出包：`dist/SevenStationCore-win-x64-0.4.1.msi`（`d51120f4e9ea7e38…`）。
+
+**遗留**：卸载后 Run 键还留着（指向不存在的 exe，Windows 会静默跳过）。要清得在卸载时按用户清 HKCU，
+先记着不做。
+
 ## STATUS-059：执行代理的登录任务 + Control 里的状态与重启（2026-11-22，未发版）
 
 STATUS-058 那三条现在都做完了，可以装。

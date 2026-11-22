@@ -1,123 +1,77 @@
-//! 执行代理的登录任务。
+//! 执行代理：让 Pi 在用户登录的桌面会话里跑。
 //!
-//! Pi 现在只能由用户登录会话里的进程起（服务账户起的话环境、凭据、窗口站都不对）。
-//! 那个「执行代理」就是 Seven Station Core 的另一个角色：同一个 exe 加 `--runner`。
-//! 这里负责在自己的登录会话里把它挂起来——建任务这一步必须由用户这边做，
-//! 服务账户是建不了「跟着这个用户登录跑」的任务的。
+//! 服务账户起 Pi 会落在 Session 0，环境、凭据、窗口站都不对；执行代理就是 Seven Station Core
+//! 的另一个角色（同一个 exe 加 `--runner`），待在登录会话里替核心起 Pi。
+//!
+//! 挂法用的是 HKCU 的 Run 键：不需要管理员、没有计划任务那个「跑满三天就被收掉」的限制，
+//! 而且计划任务带 Principal 时非提权根本建不了（报「拒绝访问」）。
 
-/// 计划任务名。核心那边按同名字查询状态，两边要一致。
-pub const TASK: &str = "SevenStation Core Runner";
+use std::os::windows::process::CommandExt;
+use std::path::Path;
 
-/// 建（或更新）任务并立刻让它跑起来。每次启动都调一遍：
-/// 升级后 exe 路径没变也能顺手把参数刷新一次，任务不在就补上。
-pub fn ensure(exe: &std::path::Path) -> Result<String, String> {
-    let user = whoami()?;
-    let xml = task_xml(&user, exe);
-    let path = std::env::temp_dir().join("sevenstation-runner-task.xml");
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+const DETACHED_PROCESS: u32 = 0x0000_0008;
 
-    // 任务计划程序只认 Unicode：UTF-16LE 带 BOM，写成 UTF-8 会报「XML 格式不正确」。
-    std::fs::write(&path, utf16le(&xml))
-        .map_err(|error| format!("写不了任务描述文件：{error}"))?;
+/// Run 键里那一项的名字。
+pub const VALUE: &str = "SevenStation Core Runner";
 
-    let create = run(
-        "schtasks.exe",
-        &["/create", "/tn", TASK, "/xml", &path.to_string_lossy(), "/f"],
+const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// 把「登录时启动执行代理」写进 Run 键。写自己家的键不需要管理员。
+pub fn ensure_autostart(exe: &Path) -> Result<(), String> {
+    let command = format!("\"{}\" --runner", exe.display());
+    let (code, text) = run(
+        "reg.exe",
+        &[
+            "add", RUN_KEY, "/v", VALUE, "/t", "REG_SZ", "/d", &command, "/f",
+        ],
     );
-    let _ = std::fs::remove_file(&path);
 
-    if create.0 != 0 {
-        return Err(format!("建不了执行代理的登录任务：{}", create.1.trim()));
+    if code != 0 {
+        return Err(format!("写不了开机启动项：{}", text.trim()));
     }
 
-    // 建好就顺手拉起来，用户不用为这件事注销重登。
-    let started = run("schtasks.exe", &["/run", "/tn", TASK]);
-    if started.0 != 0 {
-        // 没登录桌面时这里本来就会失败，不算致命。
-        return Ok(format!("任务已注册（{user}），现在没拉起来：{}", started.1.trim()));
+    Ok(())
+}
+
+/// 现在就把代理拉起来。已经在跑的话，新的那个会因为占不到管道自己退出，所以可以随手调。
+pub fn spawn(exe: &Path) -> Result<(), String> {
+    let mut command = std::process::Command::new(exe);
+    command
+        .arg("--runner")
+        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS);
+
+    match command.spawn() {
+        Ok(_) => Ok(()),
+        Err(error) => Err(format!("起不来执行代理：{error}")),
     }
-
-    Ok(format!("任务已注册并启动（{user}）"))
 }
 
-fn whoami() -> Result<String, String> {
-    let (code, text) = run("whoami.exe", &[]);
-    if code != 0 || text.trim().is_empty() {
-        return Err("认不出当前用户，建不了执行代理的登录任务。".into());
-    }
+/// 收掉正在跑的代理。按命令行里的 `--runner` 认人——服务用的是同一个 exe，
+/// 只按进程名会连服务一起杀掉。
+pub fn stop() -> usize {
+    let script = r#"Get-CimInstance Win32_Process -Filter "Name='SevenStation.Core.exe'" | Where-Object { $_.CommandLine -like '*--runner*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }"#;
+    let (_, text) = run("powershell.exe", &["-NoProfile", "-Command", script]);
 
-    Ok(text.trim().to_string())
+    text.lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .count()
 }
 
-fn task_xml(user: &str, exe: &std::path::Path) -> String {
-    let exe = escape(&exe.to_string_lossy());
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>让 Pi 在登录的桌面会话里运行（Seven Station Core 通过它起 Pi）。</Description>
-  </RegistrationInfo>
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <UserId>{user}</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>LeastPrivilege</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>true</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <IdleSettings>
-      <StopOnIdleEnd>false</StopOnIdleEnd>
-      <RestartOnIdle>false</RestartOnIdle>
-    </IdleSettings>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <Priority>7</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>{exe}</Command>
-      <Arguments>--runner</Arguments>
-    </Exec>
-  </Actions>
-</Task>
-"#,
-        user = escape(user),
-        exe = exe
-    )
-}
+/// 重启：先收掉旧的，等一下让它把管道让出来，再起一个新的。
+pub fn restart(exe: &Path) -> Result<String, String> {
+    let stopped = stop();
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    spawn(exe)?;
 
-fn escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-fn utf16le(text: &str) -> Vec<u8> {
-    let mut bytes = vec![0xFF, 0xFE];
-    for unit in text.encode_utf16() {
-        bytes.extend_from_slice(&unit.to_le_bytes());
-    }
-    bytes
+    Ok(if stopped > 0 {
+        "已重新启动执行代理。".into()
+    } else {
+        "执行代理起来了。".into()
+    })
 }
 
 fn run(exe: &str, args: &[&str]) -> (i32, String) {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
     let mut command = std::process::Command::new(exe);
     command
         .args(args)
@@ -137,34 +91,11 @@ fn run(exe: &str, args: &[&str]) -> (i32, String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{task_xml, utf16le, TASK};
-    use std::path::Path;
+    use super::VALUE;
 
     #[test]
-    fn xml_points_at_the_runner_role() {
-        let xml = task_xml("PC-alice", Path::new(r"C:\Program Files\SevenStation Core\SevenStation.Core.exe"));
-        assert!(xml.contains("<Arguments>--runner</Arguments>"));
-        assert!(xml.contains("<LogonType>InteractiveToken</LogonType>"));
-        assert!(xml.contains("SevenStation.Core.exe"));
-        // 代理要长期挂着，不能被计划任务三天后收掉。
-        assert!(xml.contains("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"));
-        assert!(xml.contains("alice"));
-        assert_eq!(TASK, "SevenStation Core Runner");
-    }
-
-    #[test]
-    fn escapes_xml_specials() {
-        let xml = task_xml("PC-a&b", Path::new(r"C:\A & B\x.exe"));
-        assert!(xml.contains("a&amp;b"));
-        assert!(xml.contains("A &amp; B"));
-        assert!(!xml.contains("A & B"));
-    }
-
-    #[test]
-    fn writes_utf16_with_bom() {
-        let bytes = utf16le("abc");
-        assert_eq!(&bytes[..2], &[0xFF, 0xFE]);
-        assert_eq!(bytes.len(), 2 + 3 * 2);
-        assert_eq!(&bytes[2..4], &[b'a', 0]);
+    fn autostart_value_name_is_stable() {
+        // 卸载/排查时靠这个名字找，别随手改。
+        assert_eq!(VALUE, "SevenStation Core Runner");
     }
 }

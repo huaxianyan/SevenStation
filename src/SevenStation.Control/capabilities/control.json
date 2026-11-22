@@ -12,6 +12,7 @@
     "allow-regenerate-token",
     "allow-copy-text",
     "allow-open-target",
+    "allow-runner-restart",
     "allow-core-api"
   ]
 }

@@ -946,18 +946,16 @@
       return;
     }
 
-    el('runnerSummary').textContent = data.registered ? '没连上' : '未注册';
-    el('runnerHint').textContent = data.registered
-      ? 'Pi 只能在登录后的桌面会话里运行。锁屏不影响；注销或停在登录界面时用不了。'
-      : '执行代理的登录任务还没注册，重新打开一次 Seven Station Control 就会建好。';
+    el('runnerSummary').textContent = '没连上';
+    el('runnerHint').textContent =
+      'Pi 只能在登录后的桌面会话里运行。锁屏不影响；注销或停在登录界面时用不了。';
     el('runnerHint').hidden = false;
   }
 
   el('restartRunner').addEventListener('click', async () => {
     el('runnerSummary').textContent = '正在重启…';
     try {
-      const result = JSON.parse(await coreApi('POST', '/api/runner/restart'));
-      toast(result.message || (result.started ? '已让执行代理重启。' : '没能重启执行代理。'));
+      toast(await invoke('runner_restart'));
     } catch (error) {
       toast(typeof error === 'string' ? error : '没能重启执行代理。');
     }

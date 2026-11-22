@@ -10,6 +10,7 @@ fn main() {
             "regenerate_token",
             "copy_text",
             "open_target",
+            "runner_restart",
             "core_api",
         ]),
     );

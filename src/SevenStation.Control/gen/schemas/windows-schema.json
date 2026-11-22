@@ -213,6 +213,12 @@
           "markdownDescription": "Enables the regenerate_token command without any pre-configured scope."
         },
         {
+          "description": "Enables the runner_restart command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-runner-restart",
+          "markdownDescription": "Enables the runner_restart command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_autostart command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-autostart",
@@ -277,6 +283,12 @@
           "type": "string",
           "const": "deny-regenerate-token",
           "markdownDescription": "Denies the regenerate_token command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the runner_restart command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-runner-restart",
+          "markdownDescription": "Denies the runner_restart command without any pre-configured scope."
         },
         {
           "description": "Denies the set_autostart command without any pre-configured scope.",

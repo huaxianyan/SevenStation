@@ -19,6 +19,12 @@ fn set_pi_dir(path: String) -> Result<(), String> {
     core::set_pi_dir(&path)
 }
 
+/// 重启执行代理：Pi 只在登录会话里跑，卡住时得有人把它收掉重起。
+#[tauri::command]
+fn runner_restart() -> Result<String, String> {
+    core::restart_runner()
+}
+
 
 /// 跟本机的 Seven Station Core 说一句话（管理接口都只认主令牌）。
 /// 走回环的裸 HTTP：够用，也不必引 HTTP 客户端依赖。
@@ -309,6 +315,7 @@ fn main() {
             regenerate_token,
             copy_text,
             open_target,
+            runner_restart,
             core_api
         ])
         .setup(|app| {
@@ -342,11 +349,8 @@ fn main() {
 
             // 登录任务：Pi 必须在用户会话里跑，这个任务就是登录后把执行代理拉起来的那根钉子。
             // 建它不需要管理员（在给自己建），失败也只是没有代理，页面上会说清楚。
-            std::thread::spawn(|| match core::core_exe_path() {
-                Ok(exe) => match runner::ensure(&exe) {
-                    Ok(message) => log_line(&format!("执行代理：{message}")),
-                    Err(message) => log_line(&format!("执行代理没挂上：{message}")),
-                },
+            std::thread::spawn(|| match core::ensure_runner() {
+                Ok(message) => log_line(&format!("执行代理：{message}")),
                 Err(message) => log_line(&format!("执行代理没挂上：{message}")),
             });
 

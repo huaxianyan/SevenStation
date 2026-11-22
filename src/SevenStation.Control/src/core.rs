@@ -667,6 +667,21 @@ fn is_elevated() -> bool {
     run("net.exe", &["session"]).0 == 0
 }
 
+/// 把执行代理挂上：登录自启写进 Run 键，然后现在就拉起来。
+/// 两件都不需要管理员；已经在跑时新起的那个会自己退出，所以每次启动都调一遍是安全的。
+pub fn ensure_runner() -> Result<String, String> {
+    let exe = core_exe_path()?;
+    crate::runner::ensure_autostart(&exe)?;
+    crate::runner::spawn(&exe)?;
+    Ok("已挂上执行代理（登录时自动启动）".into())
+}
+
+/// 界面上的「重启代理」。
+pub fn restart_runner() -> Result<String, String> {
+    let exe = core_exe_path()?;
+    crate::runner::restart(&exe)
+}
+
 fn elevate(args: &[&str]) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|error| format!("找不到自己的位置：{error}"))?;
     let script = format!(
