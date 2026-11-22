@@ -80,4 +80,23 @@ ok(rows.some((line) => line.includes('1.0.0') && line.includes('1.1.0')), '清�
 const check = [...card.querySelectorAll('button')].find((node) => node.textContent.includes('检查'));
 ok(Boolean(check), '卡片上有个「检查更新」');
 
+// 模型目录那一行：有缓存就说清楚多少条、什么时候取的。
+// 重画会把整张卡片换掉，这里每次现查。
+const fresh = () => document.getElementById('runtimeCard');
+const modelRow = () => [...fresh().querySelectorAll('.kv-row')]
+  .find((row) => row.querySelector('.kv-key').textContent === '模型目录');
+window.__dispatch({
+  type: 'updates',
+  checkedAt: '2026-11-22T18:00:00.000Z',
+  pi: { installed: '1.6.0', latest: '1.6.0', hasUpdate: false },
+  packages: [],
+  models: { count: 24, cachedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString() },
+});
+ok(Boolean(modelRow()), '卡片里有「模型目录」一行');
+ok(modelRow().textContent.includes('24 个'), '写着有几个模型：' + modelRow().textContent);
+ok(/小时前刷新/.test(modelRow().textContent), '写着上次什么时候取的：' + modelRow().textContent);
+const refetch = [...fresh().querySelectorAll('button')].find((node) => node.textContent.includes('重取'));
+ok(Boolean(refetch), '有个重取模型的按钮');
+ok(refetch.disabled, '没有打开的对话时按钮按住（取清单要问 Pi）');
+
 done();

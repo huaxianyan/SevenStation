@@ -97,7 +97,7 @@ public sealed class CenterHub
         var known = _updates.Current();
         if (known["checkedAt"] is not null)
         {
-            connection.Send(known);
+            connection.Send(WithModels(known));
         }
         else
         {
@@ -1066,7 +1066,7 @@ public sealed class CenterHub
         if (before["checkedAt"] is null)
         {
             before = await _updates.CheckAsync(force: true).ConfigureAwait(false);
-            Broadcast(before);
+            Broadcast(WithModels(before));
         }
 
         var pi = before["pi"];
@@ -1119,7 +1119,7 @@ public sealed class CenterHub
         });
 
         // 然后重新查一遍，让版本号和提示条跟上（也顺手确认真的换了）。
-        Broadcast(await _updates.CheckAsync(force: true).ConfigureAwait(false));
+        Broadcast(WithModels(await _updates.CheckAsync(force: true).ConfigureAwait(false)));
     }
 
     private static JsonObject JobRunning(string target, string from, string to) => new()
@@ -1138,10 +1138,26 @@ public sealed class CenterHub
         ["text"] = text,
     };
 
+    /// <summary>更新消息顺带把模型清单的状态带上：设置页「运行时」那张卡片要显示它。</summary>
+    private JsonObject WithModels(JsonObject snapshot)
+    {
+        var copy = snapshot.DeepClone().AsObject();
+        var models = Parse(_store.GetSetting("models"));
+        var cachedAt = long.TryParse(_store.GetSetting("modelsAt"), out var stamp) ? stamp : 0;
+        copy["models"] = new JsonObject
+        {
+            ["count"] = (models?["models"] as JsonArray)?.Count ?? 0,
+            ["cachedAt"] = cachedAt > 0
+                ? DateTimeOffset.FromUnixTimeMilliseconds(cachedAt).ToString("o")
+                : null,
+        };
+        return copy;
+    }
+
     private async Task CheckUpdatesAsync(bool force)
     {
         var snapshot = await _updates.CheckAsync(force).ConfigureAwait(false);
-        Broadcast(snapshot);
+        Broadcast(WithModels(snapshot));
     }
 
     /// <summary>

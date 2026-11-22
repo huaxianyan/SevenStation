@@ -1,6 +1,7 @@
 // 执行代理链路的冒烟：核心 → 命名管道 → 代理（用户会话）→ Pi，真给模型发一句话。
 //
 // 前置：核心与代理都在跑，且用同一个 SEVENSTATION_RUNNER_PIPE。
+// 用 Node 22 跑（pi-node 里那个）：PATH 上的 node 20 没有全局 WebSocket，会直接 ReferenceError。
 // 沙箱起法（临时 home，别用 8787）：
 //   SEVENSTATION_CORE_HOME=work\smoke\runner-home dotnet SevenStation.Core.dll --runner &
 //   SEVENSTATION_CORE_HOME=work\smoke\runner-home SEVENSTATION_LISTEN=http://127.0.0.1:8937 dotnet SevenStation.Core.dll &

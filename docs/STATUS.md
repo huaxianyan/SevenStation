@@ -2,18 +2,18 @@
 
 ## 当前主线
 
-- 现在在做什么：0.4.0 出包。相对 0.3.0 的增量是 Seven Station Control（并进 Seven Station Core 的 MSI）、
-  安装程序自己的画面与图标、局域网连接开关、命名统一。
-- 发布物仍是**两个 Windows x64 安装程序**：`SevenStationCore-win-x64-0.4.0.msi`（含 Control，43.3 MB）与
-  `SevenStation-win-x64-0.4.0.msi`（3.2 MB）。都不做便携版。
-- 已验完：两个 MSI 出包、本机 0.3.0 覆盖装到 0.4.0（服务重启、版本变 0.4.0、`%ProgramData%\SevenStation.Core`
-  的令牌与设置一字不差、对话库 1.7 MB 保留）、`ui-smoke.mjs` 全绿。
-- 顺手清了本机两个历史残留安装：一个旧 0.3.0 中心的 ProductCode（`{B0F57C2D…}`）与一个探针包（`0.0.1`）。
-  这类残留会让「应用和功能」出现同名两条，`MajorUpgrade` 一次只清掉一条。
-- README 与仓库描述按 `readme-standard` 重写过，截图在 `docs/images/`。
-- **本机装着的 v0.4.0 是用户的生产环境**（2026-11-19 起他用这两个软件干活）：测试一律用
+- 现在在做什么：0.5.0 出包。相对 0.4.1 的增量是执行代理（Pi 改由登录会话里的代理进程起）、设备配对与令牌、
+  更新提示与一键升级、字号设置、路径右键菜单、过程区分段与就地展开。
+- 版本号已改成 0.5.0，五处同号：`SevenStation.Core.csproj` 的 `<Version>`、Control 与 Desktop 的
+  `Cargo.toml` 与 `tauri.conf.json`。
+- 发布说明 `docs/release-notes/v0.5.0.md` 已过门禁（23 行）；出包后按 `build/release/v<版本>.md` 的格式补构建信息表。
+- 发版前还要做：`node scripts/ui-smoke.mjs --cwd <目录>`（真调模型，客户端也要起来）、两个 MSI 出包、
+  在干净环境真装真卸。第 4 项这台机器做不了——它是用户的生产环境。
+- 发布物仍是**两个 Windows x64 安装程序**：`SevenStationCore-win-x64-0.5.0.msi`（含 Control）与
+  `SevenStation-win-x64-0.5.0.msi`。都不做便携版。
+- **本机装着的 v0.4.1 是用户的生产环境**（2026-11-19 起他用这两个软件干活）：测试一律用
   `SEVENSTATION_PROFILE=test` + 临时 `SEVENSTATION_CORE_HOME` + 8899 端口，详见 `AGENTS.md` 的「生产与测试隔离」。
-- 2026-11-19 起用户把日常开发搬到这里来用（正式版 `v0.4.0`）。装前备份在
+- 2026-11-19 起用户把日常开发搬到这里来用（正式版，现在是 `v0.4.1`）。装前备份在
   `%USERPROFILE%\SevenStation-backup-20261119-1458\`；工作区都在 Seven Station Core 那台机器上，
   客户端设备的本地文件不参与。
 - 已发布（2026-11-19）：Release `v0.4.0` 一个页面，装 Seven Station Core 与客户端的两个 MSI 加各自 `.sha256`；

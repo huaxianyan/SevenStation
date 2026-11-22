@@ -2,12 +2,12 @@
 
 ## 发布前置
 
-- 版本号写在三处，必须同号：Seven Station Core 在 `src/SevenStation.Core/SevenStation.Core.csproj` 的 `<Version>`，
-  Seven Station Control 与客户端在各自 `Cargo.toml` 的 `version`（Tauri 应用是 Rust，没有 csproj），
-  对应的 `tauri.conf.json` 里也有一份。三处一致，产物文件名与发布说明里的版本号才跟着对。
+- 版本号写在**五处**，必须同号：Seven Station Core 在 `src/SevenStation.Core/SevenStation.Core.csproj` 的 `<Version>`，
+  Seven Station Control 与客户端在各自 `Cargo.toml` 的 `version` 与 `tauri.conf.json` 的 `version`
+  （Tauri 应用是 Rust，没有 csproj）。五处一致，产物文件名与发布说明里的版本号才跟着对。
 - Seven Station Control 不单独发：它打进 Seven Station Core 的 MSI（`docs/DECISIONS.md` D9），跟着一起装、一起卸。
-- 发布说明写在 `docs/release-notes/v<版本>-core.md`（Seven Station Core）与 `v<版本>-client.md`（客户端），
-  两份都要过门禁：`python scripts/verify_release_notes.py --link-pattern '/blob/[^/\s]+/' docs/release-notes/*.md`
+- 发布说明**一个版本一个文件**：`docs/release-notes/v<版本>.md`（两个包共用一份正文），
+  过门禁：`python scripts/verify_release_notes.py --link-pattern '/blob/[^/\s]+/' docs/release-notes/v<版本>.md`
 - 发布前必须跑通：`dotnet build SevenStation.slnx`，以及
   `node scripts/ui-smoke.mjs --cwd <目录>`（Seven Station Core 与客户端先用 `scripts/dev-run.ps1` 起来）。
 

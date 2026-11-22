@@ -163,6 +163,8 @@ const app = {
   updates: null,
   /* 「稍后」只管这一次打开：重开客户端还会再提。 */
   updDismissed: false,
+  /* 手动刷新模型清单的时刻：Core 那边要等下一次广播才带上新的 modelsAt。 */
+  modelsAt: 0,
   logTail: null,
   sessions: [],
   sessionRoot: '',
@@ -4303,6 +4305,16 @@ function renderRuntimeCard() {
     addRow('扩展', [text], stale.length > 0);
   }
 
+  const models = data && data.models;
+  if (models) {
+    const count = app.modelsAt ? (modelItems(current()) || []).length || models.count : models.count;
+    const stamp = app.modelsAt || (models.cachedAt ? Date.parse(models.cachedAt) : 0);
+    const when = stamp ? relativeTime(stamp) + '刷新' : '';
+    addRow('模型目录', [count > 0 ? `${count} 个${when ? ' · ' + when : ''}` : '还没取过']);
+  } else {
+    addRow('模型目录', ['交给 Pi 取，取过一次就缓存 24 小时']);
+  }
+
   const checked = data && data.checkedAt
     ? new Date(data.checkedAt).toLocaleString('zh-CN', { hour12: false })
     : '';
@@ -4351,6 +4363,28 @@ function renderRuntimeCard() {
     check.textContent = '正在查…';
   });
   actions.append(check);
+
+  if (models) {
+    const refresh = document.createElement('button');
+    refresh.type = 'button';
+    refresh.className = 'ghost-btn small';
+    refresh.textContent = '重取模型';
+    const key = app.currentKey;
+    if (!key) {
+      refresh.disabled = true;
+      refresh.title = '先打开一条对话，模型清单要问 Pi 才有';
+    } else {
+      refresh.addEventListener('click', () => {
+        app.modelsAt = Date.now();
+        send({ type: 'list_models', key, force: true });
+        refresh.disabled = true;
+        refresh.textContent = '正在取…';
+      });
+    }
+
+    actions.append(refresh);
+  }
+
   card.append(actions);
 
   return card;
@@ -6249,8 +6283,13 @@ function onModels(message) {
   if (!session) return;
   session.models = message.data || null;
   session.levels = message.thinkingLevels || null;
-  if (message.key === app.currentKey) renderHeader();
+  if (message.key === app.currentKey) {
+    renderHeader();
+    // 设置页正开着的话，把「模型目录」那一行的时间换掉。
+    if (app.modelsAt) renderPage('settings');
+  }
 }
+
 
 function onProcessExit(message) {
   if (stopPending && stopPending.key === message.key) {
