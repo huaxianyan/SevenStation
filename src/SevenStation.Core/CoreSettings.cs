@@ -381,7 +381,13 @@ public sealed class CoreSettings
         var changed = false;
         foreach (var agent in Agents.Values)
         {
-            if (!string.IsNullOrWhiteSpace(agent.Home) || string.IsNullOrWhiteSpace(agent.Directory))
+            if (string.IsNullOrWhiteSpace(agent.Directory))
+            {
+                continue;
+            }
+
+            // 服务账户自己的家写进配置就是错的（Pi 会照它去找配置），一并纠正。
+            if (!string.IsNullOrWhiteSpace(agent.Home) && !IsSystemProfile(agent.Home))
             {
                 continue;
             }
@@ -395,6 +401,15 @@ public sealed class CoreSettings
         }
 
         return changed;
+    }
+
+    /// <summary>
+    /// 服务账户自己的家目录（systemprofile）。写进配置会让 Pi 去那儿找配置，一条都找不到。
+    /// </summary>
+    private static bool IsSystemProfile(string home)
+    {
+        var normalized = home.Replace('/', '\\').TrimEnd('\\');
+        return normalized.EndsWith(@"\config\systemprofile", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>从 &lt;用户目录&gt;\.pi\agent 反推用户目录；不是这个形状就返回 null。</summary>
@@ -470,7 +485,7 @@ public sealed class CoreSettings
                 return new AgentSettings
                 {
                     Directory = candidate,
-                    Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    Home = HomeOf(candidate) ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 };
             }
         }

@@ -11,6 +11,13 @@ using SevenStation.Shared;
 
 [assembly: SupportedOSPlatform("windows")]
 
+// 同一个 exe 两个角色：带 --runner 就是用户会话里的执行代理，只负责起 Pi、转它的 stdio。
+// 服务账户起的进程落在 Session 0，用户 PATH、凭据、窗口站全都没有，Pi 只能由登录会话里的代理来起。
+if (args.Contains("--runner"))
+{
+    Environment.Exit(SevenStation.Core.Runner.RunnerHost.Run());
+}
+
 var runningAsService = WindowsServiceHelpers.IsWindowsService();
 Log.Initialize(ProductPaths.CoreLogs, "center.log");
 Log.Write($"启动（{(runningAsService ? "Windows 服务" : "Seven Station Control")}），目录 {ProductPaths.CoreHome}");

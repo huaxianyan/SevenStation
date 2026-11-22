@@ -14,7 +14,8 @@ namespace SevenStation.Core.Rpc;
 /// </summary>
 public sealed class PiSession : IAsyncDisposable
 {
-    private readonly Process _process;
+    private readonly IPiTransport _transport;
+    private readonly StreamWriter _input;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> _pending = new();
     private readonly StringBuilder _stderr = new();
     private readonly object _writeLock = new();
@@ -29,11 +30,12 @@ public sealed class PiSession : IAsyncDisposable
 
     public string WorkingDirectory { get; }
     public string? SessionPath { get; }
-    public bool IsRunning => !_disposed && !_process.HasExited;
+    public bool IsRunning => !_disposed && !_transport.HasExited;
 
-    private PiSession(Process process, string workingDirectory, string? sessionPath)
+    private PiSession(IPiTransport transport, string workingDirectory, string? sessionPath)
     {
-        _process = process;
+        _transport = transport;
+        _input = new StreamWriter(transport.Input, new UTF8Encoding(false)) { AutoFlush = false };
         WorkingDirectory = workingDirectory;
         SessionPath = sessionPath;
     }
@@ -46,56 +48,9 @@ public sealed class PiSession : IAsyncDisposable
             throw new DirectoryNotFoundException($"工作目录不存在：{workingDirectory}");
         }
 
-        var psi = new ProcessStartInfo(PiLocator.ResolveNode())
-        {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardInputEncoding = new UTF8Encoding(false),
-            StandardOutputEncoding = new UTF8Encoding(false),
-            StandardErrorEncoding = new UTF8Encoding(false),
-        };
-        psi.ArgumentList.Add(PiLocator.LauncherPath);
-        // 服务跑在系统账户下时，Pi 仍然要按真实用户的家目录找配置、写会话，
-        // 否则它看到的是一个空的 ~/.pi，连模型都调不起来。
-        var home = CoreSettings.Current.Agent(AgentRegistry.PiId)?.Home;
-        if (!string.IsNullOrWhiteSpace(home) && Directory.Exists(home))
-        {
-            psi.Environment["USERPROFILE"] = home;
-            psi.Environment["HOME"] = home;
-        }
-
-        psi.ArgumentList.Add("--mode");
-        psi.ArgumentList.Add("rpc");
-
-        // 界面把回复里的路径和网址做成可点的，怎么写才能被认出来由这份说明约定。
-        // Pi 的 --append-system-prompt 只吃文本，所以这里自己读文件再传内容。
-        var guidance = Path.Combine(AppContext.BaseDirectory, "Agents", "pi-guidance.md");
-        try
-        {
-            if (File.Exists(guidance) && PiLocator.SupportsAppendSystemPrompt)
-            {
-                psi.ArgumentList.Add("--append-system-prompt");
-                psi.ArgumentList.Add(File.ReadAllText(guidance).Trim());
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Write("读不到给 Pi 的界面说明：" + ex.Message, ex);
-        }
-        if (!string.IsNullOrEmpty(sessionPath))
-        {
-            psi.ArgumentList.Add("--session");
-            psi.ArgumentList.Add(sessionPath);
-        }
-
-        var process = Process.Start(psi)
-            ?? throw new InvalidOperationException("无法启动 Pi 子进程。");
-
-        var session = new PiSession(process, workingDirectory, sessionPath);
+        // 谁起这个进程由 PiHost 决定：核心自己（用户会话）或执行代理（服务跑在 Session 0 时）。
+        var transport = PiHost.Open(workingDirectory, sessionPath);
+        var session = new PiSession(transport, workingDirectory, sessionPath);
         session.ReadStdout();
         session.ReadStderr();
         return session;
@@ -107,7 +62,7 @@ public sealed class PiSession : IAsyncDisposable
         {
             try
             {
-                var reader = _process.StandardOutput;
+                var reader = _transport.Output;
                 while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
                     if (line.Length == 0)
@@ -155,9 +110,9 @@ public sealed class PiSession : IAsyncDisposable
             int code = -1;
             try
             {
-                if (_process.WaitForExit(5000))
+                if (_transport.WaitForExit(TimeSpan.FromSeconds(5)))
                 {
-                    code = _process.ExitCode;
+                    code = _transport.ExitCode;
                 }
             }
             catch
@@ -181,7 +136,7 @@ public sealed class PiSession : IAsyncDisposable
         {
             try
             {
-                var reader = _process.StandardError;
+                var reader = _transport.Error;
                 while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
                 {
                     AppendStderr(line);
@@ -232,8 +187,8 @@ public sealed class PiSession : IAsyncDisposable
         {
             lock (_writeLock)
             {
-                _process.StandardInput.WriteLine(command.ToJsonString());
-                _process.StandardInput.Flush();
+                _input.WriteLine(command.ToJsonString());
+                _input.Flush();
             }
         }
         catch (Exception ex)
@@ -263,8 +218,8 @@ public sealed class PiSession : IAsyncDisposable
 
         lock (_writeLock)
         {
-            _process.StandardInput.WriteLine(record.ToJsonString());
-            _process.StandardInput.Flush();
+            _input.WriteLine(record.ToJsonString());
+            _input.Flush();
         }
     }
 
@@ -279,7 +234,7 @@ public sealed class PiSession : IAsyncDisposable
         try
         {
             // 关 stdin 请求有序退出；Pi 处理完手头工作再退出，所以给一段时间再强杀。
-            _process.StandardInput.Close();
+            _input.Close();
         }
         catch
         {
@@ -288,19 +243,12 @@ public sealed class PiSession : IAsyncDisposable
 
         await Task.Run(() =>
         {
-            try
+            if (!_transport.WaitForExit(TimeSpan.FromSeconds(8)))
             {
-                if (!_process.WaitForExit(8000))
-                {
-                    _process.Kill(entireProcessTree: true);
-                }
-            }
-            catch
-            {
-                // 已退出。
+                _transport.Kill();
             }
         }).ConfigureAwait(false);
 
-        _process.Dispose();
+        await _transport.DisposeAsync().ConfigureAwait(false);
     }
 }

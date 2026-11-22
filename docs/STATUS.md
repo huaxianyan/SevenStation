@@ -22,11 +22,57 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-058：Pi 改由用户登录会话里的执行代理来起（2026-11-22，未发版）
+
+**为什么改**：服务跑在 Session 0 / SYSTEM，Pi 作为它的子进程也一样。用户实测在客户端里调工具
+比在终端里用 Pi 慢很多、也费 token（npm/node 找不到、凭据不对、生成的文件 owner 变成 SYSTEM），
+起 GUI 程序还看不见窗口。根因不是缺几个环境变量，是进程站错了会话。
+用户拍板：底层要跟「用户在终端里用 Pi」完全一致；Windows 只是过渡，后面主目标是 Linux，
+「没登录 / 注销就不能用」是能接受的结果。
+
+**做法**：同一个 exe 两个角色。
+
+- `SevenStation.Core.exe`（服务，SYSTEM）：对话库、WebSocket、托管页面，**不再直接起 Pi**。
+- `SevenStation.Core.exe --runner`（登录后自启，用户会话）：只做一件事——按核心给的 exe/参数/cwd
+  起进程，把 stdin/stdout/stderr 转回去。Pi 怎么用、说什么话仍然全在核心这边（Agent 边界不变）。
+- 两者之间一条命名管道（`\\.\pipe\sevenstation-runner`，`SEVENSTATION_RUNNER_PIPE` 可改），
+  上面跑按行 JSON、按会话 id 分帧：`start` / `line` / `eof` / `kill` ←→ `started` / `out` / `err` / `exit` / `failed`。
+
+**判定**：`Process.GetCurrentProcess().SessionId == 0`（或账户名是 SYSTEM）就必须走代理；
+连不上就明确报错（「Pi 需要在已登录的桌面会话里运行……」），**不回落成 SYSTEM 起 Pi**——
+回落等于把这次要修的问题悄悄装回去。
+
+**代码**：
+
+- 新 `Rpc/IPiTransport.cs`、`Rpc/ProcessTransport.cs`、`Rpc/PiCommand.cs`、`Rpc/PiHost.cs`、
+  `Rpc/RunnerClient.cs`（客户端 + `RunnerTransport` + 按行读写的桥）、`Runner/RunnerHost.cs`（`--runner` 那半边）。
+- `Rpc/PiSession.cs` 换成吃 `IPiTransport`，其余 RPC 逻辑没动。
+- 去掉 Pi 子进程的 `USERPROFILE`/`HOME` 覆盖：那套是给 Session 0 打的补丁，现在两边环境本来就对，
+  再覆盖反而会把配置指错（实测指到了 systemprofile，Pi 报 `No API key found`）。
+- `CoreSettings`：`PI_AGENT_DIR` 指到某个用户目录时，`Home` 以前一律写成进程自己的家（服务下就是
+  systemprofile），改成从 `<家>\.pi\agent` 反推；另外把已经写错的 systemprofile 一并纠正。
+
+**坑（血的）**：命名管道同步句柄上，挂着的阻塞读会把同一句柄上的写一起卡住——核心连上代理后
+`WriteLine` 直接死等，看着像「代理没收到」。两端都必须 `PipeOptions.Asynchronous`。
+
+**验证**：`node scripts/runner-smoke.mjs --port <非8787> --home <临时home> --cwd <目录>`
+（临时 home、临时管道名，Pi 用 `magpie/auto/deepseek-v4.1-flash`）。
+
+- 有代理：`✓ 代理链路通了，Pi 回了：收到`，代理日志里有 `起进程 …`。
+- 没有代理：界面报「Pi 需要在已登录的桌面会话里运行……」，不回落。
+
+**还没做（不做完这个功能不能发版）**：
+
+1. 代理的登录自启（计划任务，当前用户、无需管理员）与卸载清理。
+2. Seven Station Control 显示代理状态、能给个「重启代理」。
+3. 安装包里带上这两件事——否则装上新版本的机器根本起不了 Pi。
+
 ## STATUS-057：core_api 真的连不上 —— 请求头被写成了裸 LF（2026-11-20，未发版）
 
 补完 ACL 之后还是不行，弹窗报「Seven Station Core 回了一段看不懂的响应」。
 
-**根因**：`core_api` 里手写的 HTTP 请求，`
+**根因**：`core_api` 里手写的 HTTP 请求，`
+
 ` 在生成代码时被写成了**真正的换行**（字符串字面量里是裸 LF）。
 于是请求头全是坏的：请求行后面直接空行，Kestrel 当成「没有 Host 头的 HTTP/1.1」回 400，
 而解析那头找的又是四个换行连在一起，永远找不到 → 报「看不懂的响应」。
