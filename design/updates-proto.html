@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-palette="paper">
+<head>
+<meta charset="utf-8">
+<title>版本与更新 · 原型</title>
+<link rel="stylesheet" href="../src/SevenStation.Core/wwwroot/styles.css">
+<style>
+  /* 原型自己的排版：直接把产品的卡片/行/徽标摆出来，不重复造样式。 */
+  body { margin: 0; padding: 26px 30px 60px; background: var(--page); color: var(--text); font-family: var(--font); }
+  .proto-title { margin: 0 0 4px; font-size: calc(17px * var(--fs-ui)); font-weight: 600; }
+  .proto-lede { margin: 0 0 22px; font-size: calc(12.5px * var(--fs-ui)); color: var(--text-mute); }
+  .block { margin-bottom: 30px; }
+  .block > h2 { margin: 0 0 2px; font-size: calc(13.5px * var(--fs-ui)); font-weight: 600; }
+  .block > .why { margin: 0 0 12px; font-size: calc(12px * var(--fs-ui)); color: var(--text-faint); }
+  .stage { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .frame { width: 560px; background: var(--page); }
+  .frame.wide { width: 720px; }
+  .frame .page-card { margin: 0; }
+  .page-head { margin-bottom: 14px; align-items: center; }
+  .page-head-right { display: flex; gap: 8px; align-items: center; }
+  .kv-value { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .gap-badge { color: var(--text-faint); }
+  .sub { display: block; margin-top: 3px; font-size: calc(11.5px * var(--fs-ui)); color: var(--text-faint); }
+  .proto-toasts { position: static; width: auto; padding: 0; gap: 10px; }
+  .proto-toasts .toast { position: static; }
+  .mini-note { margin: 10px 0 0; font-size: calc(11.5px * var(--fs-ui)); color: var(--text-faint); }
+</style>
+</head>
+<body>
+
+<h1 class="proto-title">版本与更新 · 原型</h1>
+<p class="proto-lede">照着 Pi 自己的判定（pinned 跳过、npm 比 semver、git 比上游 ls-remote）。所有样式取自产品的 styles.css，不是另画一套。</p>
+
+<div class="block">
+  <h2>A · 设置页：运行时卡片</h2>
+  <p class="why">放在「连接」下面。只读的部分一眼能看完：版本、什么时候检查的、有没有新版。动作收在右边两个按钮里。</p>
+  <div class="stage">
+    <div class="frame">
+      <div class="page-card">
+        <h3>运行时</h3>
+
+        <div class="kv-row">
+          <span class="kv-key">Pi</span>
+          <span class="kv-value">
+            <span>1.5.2</span>
+            <span class="gap-badge">→</span>
+            <strong>1.6.0</strong>
+            <span class="badge badge-warn">有新版</span>
+            <button class="ghost-btn small">升级 Pi</button>
+            <button class="ghost-btn small">检查更新</button>
+          </span>
+        </div>
+
+        <div class="kv-row">
+          <span class="kv-key">模型目录</span>
+          <span class="kv-value">
+            <span>3 天前刷新</span>
+            <button class="ghost-btn small">刷新</button>
+          </span>
+        </div>
+
+        <p class="page-note">升级只换 <code>install/current-version</code>，旧版本目录留着，出问题能回退一步。模型清单缓存 24 小时过期，上面那个刷新是强制重取。</p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="page-card">
+        <h3>其余几种状态</h3>
+        <div class="kv-row">
+          <span class="kv-key">Pi</span>
+          <span class="kv-value"><span>1.6.0</span><span class="badge badge-soft">已是最新</span><button class="ghost-btn small">检查更新</button></span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Pi</span>
+          <span class="kv-value"><span>1.5.2</span><span class="badge badge-plain">检查中…</span><button class="ghost-btn small" disabled>升级 Pi</button></span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Pi</span>
+          <span class="kv-value"><span>1.5.2</span><span class="sub" style="margin:0">检查失败：连不上 registry.npmjs.org</span><button class="ghost-btn small">重试</button></span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">Pi</span>
+          <span class="kv-value"><span>1.6.0</span><span class="badge badge-warn">正在升级</span><span class="sub" style="margin:0">从 1.5.2 升上来，约 35 秒</span></span>
+        </div>
+        <p class="mini-note">失败不藏起来：说清楚是网络问题还是版本冒烟没过。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="block">
+  <h2>B · 扩展页：有新版才多一个徽标</h2>
+  <p class="why">判定照 Pi：npm 比 semver，git 比上游 <code>ls-remote</code>；钉住的（带任何 ref）与本地包不检查，直接写出来，免得用户以为漏了。</p>
+  <div class="stage">
+    <div class="frame wide">
+      <div class="page-head">
+        <div>
+          <h2>扩展</h2>
+        </div>
+        <div class="page-head-right">
+          <button class="ghost-btn">检查更新</button>
+          <button class="ghost-btn">刷新</button>
+        </div>
+      </div>
+
+      <div class="page-card">
+        <h3>扩展包</h3>
+        <div class="item-list">
+          <div class="item-row">
+            <div class="item-top">
+              <span class="item-name">TokenEconomizer</span>
+              <span class="badge badge-soft">git</span>
+              <span class="badge badge-plain">0.1.0</span>
+              <span class="badge badge-warn">有新版 1bfeccd</span>
+            </div>
+            <span class="item-path">E:\Users\…\.pi\agent\git\github.com\microsoft\TokenEconomizer</span>
+          </div>
+
+          <div class="item-row">
+            <div class="item-top">
+              <span class="item-name">pi-web-access</span>
+              <span class="badge badge-soft">npm</span>
+              <span class="badge badge-plain">0.48.0</span>
+              <span class="badge badge-soft">已是最新</span>
+            </div>
+            <span class="item-path">C:\Users\…\.pi\agent\npm\node_modules\pi-web-access</span>
+          </div>
+
+          <div class="item-row">
+            <div class="item-top">
+              <span class="item-name">pi-smart-compact</span>
+              <span class="badge badge-soft">git</span>
+              <span class="badge badge-plain">10.7.3</span>
+              <span class="badge badge-plain">钉住 · 不检查更新</span>
+            </div>
+            <span class="item-path">…\git\github.com\huaxianyan\pi-smart-compact@v2ex-recovery</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="mini-note">「更新全部」在有新版时出现在页头；单个更新在行尾（悬停出现，跟现在其它行内动作一致）。</p>
+    </div>
+  </div>
+</div>
+
+<div class="block">
+  <h2>C · 进度卡片：一张卡片翻面</h2>
+  <p class="why">沿用现有通知卡片：先是转圈 + 任务，结束时原地换成结果，不弹第二个。</p>
+  <div class="stage">
+    <div class="frame">
+      <div class="toasts proto-toasts">
+        <div class="toast is-busy"><span class="toast-spin"></span><span class="toast-text">正在更新 Pi… 1.5.2 → 1.6.0</span></div>
+        <div class="toast"><span class="toast-text">已更新到 1.6.0，新开的对话就用这个版本</span></div>
+        <div class="toast error"><span class="toast-text">更新失败：新版本冒烟没过（PATH 里的 node 太旧），换个 node 再试</span></div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="page-card">
+        <h3>失败后可回退</h3>
+        <p class="page-note">升级失败不影响当前版本；已经激活过的版本可以回退一步：把 <code>install/current-version</code> 改回旧版本号。</p>
+        <div class="kv-row">
+          <span class="kv-key">可回退</span>
+          <span class="kv-value"><span>1.5.2</span><button class="ghost-btn small">回退并重启 Pi</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="block">
+  <h2>D · 技能页：只加来源，不加版本</h2>
+  <p class="why">技能没有版本这个概念（18 个都是本地目录）。加来源标签就够了：能看出它是自己写的、还是某个扩展包带进来的。</p>
+  <div class="stage">
+    <div class="frame wide">
+      <div class="page-head">
+        <div><h2>技能</h2></div>
+        <div class="page-head-right"><button class="ghost-btn">刷新</button></div>
+      </div>
+      <div class="page-card">
+        <h3>用户技能</h3>
+        <div class="item-list">
+          <div class="item-row">
+            <div class="item-top">
+              <span class="item-name">chinese-tech-writing</span>
+              <span class="badge badge-soft">用户</span>
+            </div>
+            <span class="item-path">C:\Users\7inaBranford\.pi\agent\skills\chinese-tech-writing\SKILL.md</span>
+          </div>
+          <div class="item-row">
+            <div class="item-top">
+              <span class="item-name">btw</span>
+              <span class="badge badge-soft">来自 pi-btw</span>
+            </div>
+            <span class="item-path">…\npm\node_modules\pi-btw\skills\btw\SKILL.md</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 原型专用：?theme=dark&palette=pine 用来快速看深色与配色。
+  const query = new URLSearchParams(location.search);
+  const theme = query.get('theme');
+  const palette = query.get('palette');
+  if (theme) document.documentElement.dataset.theme = theme;
+  if (palette) document.documentElement.dataset.palette = palette;
+  const size = query.get('fs');
+  if (size) {
+    const map = { s: 0.9, m: 1, l: 1.12, xl: 1.24 };
+    const scale = map[size] || 1;
+    document.documentElement.style.setProperty('--fs-body', scale);
+    document.documentElement.style.setProperty('--fs-work', scale);
+    document.documentElement.style.setProperty('--fs-ui', scale);
+  }
+</script>
+</body>
+</html>
