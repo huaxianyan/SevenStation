@@ -160,6 +160,9 @@ const app = {
   view: 'chat',
   skills: null,
   extensions: null,
+  updates: null,
+  /* 「稍后」只管这一次打开：重开客户端还会再提。 */
+  updDismissed: false,
   logTail: null,
   sessions: [],
   sessionRoot: '',
@@ -224,6 +227,11 @@ const el = {
   extensionsNav: document.getElementById('extensionsNav'),
   skillsCount: document.getElementById('skillsCount'),
   extensionsCount: document.getElementById('extensionsCount'),
+  extensionsUpdate: document.getElementById('extensionsUpdate'),
+  updStrip: document.getElementById('updStrip'),
+  updText: document.getElementById('updText'),
+  updLater: document.getElementById('updLater'),
+  updGo: document.getElementById('updGo'),
   topbar: document.querySelector('.topbar'),
   pageView: document.getElementById('pageView'),
   pageInner: document.getElementById('pageInner'),
@@ -4140,10 +4148,165 @@ function renderTokenCard() {
   return card;
 }
 
+/* ------------------------------------------------------------------ *
+ * 更新：Pi 自己与扩展有没有新版
+ * Seven Station Core 每 6 小时查一次，结果推过来；这里只负责照着画。
+ * 没有更新就什么都不露——一个「都是最新」的常驻提示只会占地方。
+ * ------------------------------------------------------------------ */
+
+function updateSummary() {
+  const data = app.updates;
+  if (!data) return null;
+  const pi = data.pi && data.pi.hasUpdate ? data.pi : null;
+  const packages = (data.packages || []).filter((item) => item.hasUpdate);
+  if (!pi && !packages.length) return null;
+  return { pi, packages, checkedAt: data.checkedAt || '' };
+}
+
+function versionNode(from, to) {
+  const strong = document.createElement('strong');
+  strong.textContent = `${from} → ${to}`;
+  return strong;
+}
+
+function renderUpdateStrip() {
+  const summary = updateSummary();
+  const show = Boolean(summary) && !app.updDismissed;
+  el.updStrip.hidden = !show;
+  el.updText.textContent = '';
+  if (!show) return;
+
+  if (summary.pi) {
+    el.updText.append('Pi 有新版本 ');
+    el.updText.append(versionNode(summary.pi.installed || '未知', summary.pi.latest || '未知'));
+    if (summary.packages.length) {
+      el.updText.append(`，另有 ${summary.packages.length} 个扩展待更新`);
+    }
+
+    return;
+  }
+
+  el.updText.append(`${summary.packages.length} 个扩展有新版本`);
+}
+
+function renderNavUpdate() {
+  const packages = (app.updates && app.updates.packages) || [];
+  el.extensionsUpdate.hidden = !packages.some((item) => item.hasUpdate);
+}
+
+el.updLater.addEventListener('click', () => {
+  app.updDismissed = true;
+  renderUpdateStrip();
+});
+
+el.updGo.addEventListener('click', () => {
+  switchView('settings');
+  requestAnimationFrame(() => {
+    const card = document.getElementById('runtimeCard');
+    if (card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+});
+
+function renderRuntimeCard() {
+  const card = makePageCard('运行时');
+  card.id = 'runtimeCard';
+
+  const data = app.updates;
+  const pi = data && data.pi;
+  const packages = (data && data.packages) || [];
+  const stale = packages.filter((item) => item.hasUpdate);
+
+  const list = document.createElement('div');
+  list.className = 'kv';
+
+  const addRow = (key, nodes, flag) => {
+    const row = document.createElement('div');
+    row.className = 'kv-row';
+
+    const label = document.createElement('span');
+    label.className = 'kv-key';
+    label.textContent = key;
+
+    const value = document.createElement('span');
+    value.className = 'kv-value';
+    nodes.forEach((node) => value.append(node));
+
+    if (flag) {
+      const badge = document.createElement('span');
+      badge.className = 'upd-badge';
+      badge.textContent = '有新版';
+      value.append(badge);
+    }
+
+    row.append(label, value);
+    list.append(row);
+  };
+
+  if (!data) {
+    addRow('Pi', ['还没查过']);
+  } else if (!pi || !pi.installed) {
+    addRow('Pi', ['版本未知']);
+  } else if (pi.hasUpdate) {
+    addRow('Pi', [versionNode(pi.installed, pi.latest || '未知')], true);
+  } else {
+    addRow('Pi', [pi.installed]);
+  }
+
+  if (data && packages.length) {
+    const text = stale.length
+      ? `${packages.length} 个，${stale.length} 个可更新`
+      : `${packages.length} 个，都是最新`;
+    addRow('扩展', [text], stale.length > 0);
+  }
+
+  const checked = data && data.checkedAt
+    ? new Date(data.checkedAt).toLocaleString('zh-CN', { hour12: false })
+    : '';
+  addRow('上次检查', [checked || (data && data.checking ? '正在查…' : '还没查过')]);
+  card.append(list);
+
+  if (stale.length) {
+    const detail = document.createElement('div');
+    detail.className = 'upd-detail';
+    stale.forEach((item) => {
+      const line = document.createElement('div');
+      line.className = 'upd-detail-row';
+      const name = document.createElement('span');
+      name.className = 'upd-detail-name';
+      name.textContent = item.name;
+      name.title = item.source || item.name;
+      const version = document.createElement('span');
+      version.className = 'upd-detail-version';
+      version.append(versionNode(item.installed || '未知', item.latest || '未知'));
+      line.append(name, version);
+      detail.append(line);
+    });
+    card.append(detail);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'page-actions';
+  const check = document.createElement('button');
+  check.type = 'button';
+  check.className = 'ghost-btn small';
+  check.textContent = data && data.checking ? '正在查…' : '检查更新';
+  check.disabled = Boolean(data && data.checking);
+  check.addEventListener('click', () => {
+    send({ type: 'check_updates', force: true });
+    check.disabled = true;
+    check.textContent = '正在查…';
+  });
+  actions.append(check);
+  card.append(actions);
+
+  return card;
+}
+
 function renderSettingsPage() {
   el.pageInner.appendChild(makePageHead('设置'));
   el.pageInner.appendChild(renderAppearanceCard());
   el.pageInner.appendChild(renderFontCard());
+  el.pageInner.appendChild(renderRuntimeCard());
 
   const connection = makePageCard('连接');
   const local = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
@@ -5719,6 +5882,13 @@ function dispatch(message) {
       app.skills = message;
       el.skillsCount.textContent = String((message.items || []).length);
       if (app.view === 'skills') renderPage('skills');
+      break;
+
+    case 'updates':
+      app.updates = message;
+      renderUpdateStrip();
+      renderNavUpdate();
+      if (app.view === 'settings') renderPage('settings');
       break;
 
     case 'extensions':

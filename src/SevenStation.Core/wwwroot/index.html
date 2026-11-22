@@ -42,7 +42,10 @@
           <button class="nav-item" id="extensionsNav">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.2v3.2M10 2.2v3.2M4.2 5.4h7.6v2.2a3.8 3.8 0 0 1-7.6 0z"/><path d="M8 11.4v2.4"/></svg>
             <span>扩展</span>
-            <span class="nav-count" id="extensionsCount"></span>
+            <span class="nav-tail">
+              <span class="nav-update" id="extensionsUpdate" hidden aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 10.2V5.8"/><path d="M6.6 7.7 8 5.8 9.4 7.7"/></svg></span>
+              <span class="nav-count" id="extensionsCount"></span>
+            </span>
           </button>
           <button class="nav-item" id="settingsBtn">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.4 4.6h6.2M11.4 4.6h2.2M2.4 8h2.4M7.6 8h6M2.4 11.4h7.4M12.6 11.4h1"/><path d="M10.4 3.2v2.8M6.8 6.6v2.8M11.6 10v2.8"/></svg>
@@ -158,6 +161,14 @@
               <div class="attachments" id="attachments" hidden></div>
             </div>
             <div class="widget-strip" id="widgetStrip" hidden></div>
+            <div class="upd-strip" id="updStrip" hidden>
+              <span class="upd-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 10.2V5.8"/><path d="M6.6 7.7 8 5.8 9.4 7.7"/></svg></span>
+              <span class="upd-text" id="updText"></span>
+              <span class="upd-actions">
+                <button class="upd-btn" id="updLater" type="button">稍后</button>
+                <button class="upd-btn upd-btn-main" id="updGo" type="button">查看</button>
+              </span>
+            </div>
             <div class="completions" id="completions" hidden></div>
             <div class="queue-panel" id="queuePanel" hidden>
               <div class="queue-head">

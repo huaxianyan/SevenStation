@@ -59,11 +59,13 @@ public sealed class CenterHub
     private readonly object _terminalGate = new();
     private readonly List<CenterConnection> _clients = new();
     private readonly ConversationStore _store;
+    private readonly PiUpdates _updates;
 
     public CenterHub(ConversationStore store, string listenUrl)
     {
         _store = store;
         ListenUrl = listenUrl;
+        _updates = new PiUpdates(() => CoreSettings.Current.PiHome);
     }
 
     /// <summary>Seven Station Core 对外报的地址，界面拿去给人看，方便照着连别的设备。</summary>
@@ -88,6 +90,12 @@ public sealed class CenterHub
             ["css"] = _store.GetSetting("custom_css"),
             ["workspaces"] = new JsonArray(RecentWorkspaces().Select(entry => (JsonNode?)JsonValue.Create(entry)).ToArray()),
         });
+
+        // 更新状态可能已经查过了，新连上的客户端不用干等下一轮。
+        if (_updates.Current()["checkedAt"] is not null)
+        {
+            connection.Send(_updates.Current());
+        }
     }
 
     public void Leave(CenterConnection connection)
@@ -215,6 +223,10 @@ public sealed class CenterHub
 
                 case "list_skills":
                     SendSkills(message["cwd"]?.GetValue<string>() ?? string.Empty, sender);
+                    break;
+
+                case "check_updates":
+                    _ = CheckUpdatesAsync(message["force"]?.GetValue<bool>() ?? false);
                     break;
 
                 case "list_extensions":
@@ -993,6 +1005,37 @@ public sealed class CenterHub
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// 启动后 20 秒查一次有没有新版，之后每 6 小时一次。查不到就什么也不说——
+    /// 网络不通不该在界面上留个红点。
+    /// </summary>
+    public void StartUpdateLoop()
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+            while (true)
+            {
+                try
+                {
+                    await CheckUpdatesAsync(force: true).ConfigureAwait(false);
+                }
+                catch (Exception error)
+                {
+                    Log.Write($"检查更新失败：{error.Message}");
+                }
+
+                await Task.Delay(TimeSpan.FromHours(6)).ConfigureAwait(false);
+            }
+        });
+    }
+
+    private async Task CheckUpdatesAsync(bool force)
+    {
+        var snapshot = await _updates.CheckAsync(force).ConfigureAwait(false);
+        Broadcast(snapshot);
     }
 
     /// <summary>

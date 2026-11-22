@@ -66,6 +66,7 @@ var store = new ConversationStore(Path.Combine(ProductPaths.CoreDataDirectory, "
 Log.Write($"对话库：{store.DatabasePath}");
 var devices = new DeviceStore(store.DatabasePath);
 var hub = new CenterHub(store, listen);
+hub.StartUpdateLoop();
 
 app.UseWebSockets();
 app.UseDefaultFiles();

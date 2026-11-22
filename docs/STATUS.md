@@ -22,6 +22,25 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-081：只读更新（版本可见 + 每 6 小时查一次，2026-11-22）
+
+只做「看得见」，还没做「升得动」。
+
+- Core 新增 `Agents/PiUpdates.cs`：判定照 Pi 的 `checkForAvailableUpdates()`——钉住的一律跳过、
+  npm 比 semver、git 拿上游分支比 `ls-remote`、任何异常都当没有更新。Pi 是哪个 npm 包从
+  `install/releases/<版本>/package.json` 的 dependencies 里读，不写死包名。
+- 节奏：启动后 20 秒一次，之后每 6 小时；手动「检查更新」有 10 分钟缓存，并发只打一次网络。
+  新客户端连上直接拿缓存（`Join` 里补一条 `updates`）。
+- 界面三处：输入框上方提示条（有新版才露，`稍后`＝本次不再提醒）、侧栏「扩展」行数字左边的紫色图标
+  （只在有扩展可更新时亮）、设置页「运行时」卡片（Pi 与扩展的版本、可更新清单、检查更新）。
+  提示条的「查看」先跳到运行时卡片；升级通道做好后换成「升级」。
+- 紫色 `--upd`（亮 `#7357e8` / 深 `#a78bfa`）只用在更新这条线上。
+
+验证：临时 home 起 8899（`work/smoke/upd-home`）跑 `node scripts/check-updates.mjs`，实测
+Pi 1.5.2 → 1.6.0、TokenEconomizer 4a04fe4 → 1bfeccd、钉住的 `pi-smart-compact@v2ex-recovery`
+只报提交不比远程；界面用 CDP 截图核过亮/深两套。`scripts/ui-tests/updates-strip.test.js` 锁住
+「有更新才露 / 稍后只管这一次 / 没有更新不出声 / 文案不出现内部术语」。
+
 ## STATUS-080：更新图标尾巴加长（原型 v6，2026-11-22）
 
 用户说「箭头尾巴有点短，第一眼看不出是往上的」。第一版 shaft 只有 6.35–9.65（长 3.3），

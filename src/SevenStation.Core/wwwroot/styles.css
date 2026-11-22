@@ -30,6 +30,10 @@
   --link: #2f54c9;
   --green: #189a4a;
   --danger: #cf3b3b;
+  /* 升级专用色：只出现在「有新版」这条线上，不拿去染按钮和导航选中。 */
+  --upd: #7357e8;
+  --upd-soft: color-mix(in oklab, var(--upd) 10%, var(--card));
+  --upd-line: color-mix(in oklab, var(--upd) 26%, var(--border));
 
   /* 用户气泡：默认跟随强调色，另给两档固定绿。亮色档在下面按主题覆盖。 */
   --bubble-user: color-mix(in oklab, var(--accent) 13%, var(--card));
@@ -91,6 +95,10 @@
   --bubble-user-line: transparent;
   --bubble-user-inner: rgba(0, 0, 0, .26);
   --bubble-user-inner-line: rgba(255, 255, 255, .08);
+
+  --upd: #a78bfa;
+  --upd-soft: color-mix(in oklab, var(--upd) 14%, var(--card));
+  --upd-line: color-mix(in oklab, var(--upd) 30%, var(--border));
 }
 
 :root[data-theme="dark"][data-bubble="wechat"] {
@@ -416,6 +424,135 @@ button { cursor: pointer; }
 
 .nav-item:hover { background: var(--active); color: var(--text); }
 .nav-item.is-active { background: var(--active); color: var(--accent); font-weight: 500; }
+
+.nav-tail {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-tail .nav-count { margin-left: 0; }
+
+/* 侧栏「扩展」那行右边的升级标记：图标在数字左边，数字仍然贴右边。 */
+.nav-update {
+  display: flex;
+  align-items: center;
+  color: var(--upd);
+}
+
+.nav-update svg { width: 16px; height: 16px; }
+
+.nav-item.is-active .nav-update { color: var(--upd); }
+
+.upd-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 7px 10px 7px 12px;
+  border: 1px solid var(--upd-line);
+  border-radius: var(--radius-sm);
+  background: var(--upd-soft);
+  color: var(--text);
+  font-size: calc(12.5px * var(--fs-ui));
+}
+
+.upd-icon {
+  display: flex;
+  align-items: center;
+  color: var(--upd);
+  flex: 0 0 auto;
+}
+
+.upd-icon svg { width: 18px; height: 18px; }
+
+.upd-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upd-text strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.upd-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.upd-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text-soft);
+  font-size: calc(12px * var(--fs-ui));
+  cursor: pointer;
+}
+
+.upd-btn:hover { background: var(--active); color: var(--text); }
+
+.upd-btn-main {
+  border-color: var(--upd-line);
+  color: var(--upd);
+  background: transparent;
+}
+
+.upd-btn-main:hover {
+  background: color-mix(in oklab, var(--upd) 12%, var(--card));
+  color: var(--upd);
+}
+
+.upd-badge {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--upd) 14%, transparent);
+  color: var(--upd);
+  font-size: calc(11px * var(--fs-ui));
+  font-weight: 500;
+}
+
+.upd-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.upd-detail-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: calc(12px * var(--fs-ui));
+  color: var(--text-soft);
+}
+
+.upd-detail-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upd-detail-version {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--upd);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
 
 .nav-count {
   margin-left: auto;

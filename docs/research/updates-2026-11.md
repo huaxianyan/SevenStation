@@ -332,3 +332,15 @@ D  箭头中心 (8.00, 8.00) · 偏差 0.00px
 
 1. 检查更新的间隔 6 小时是否合适（太勤会打扰，太懒会滞后）；
 2. 图标是否就定 A（换 B/C/D 只是换个 SVG，版位不用动）。
+
+## 实现（2026-11-22，只读部分）
+
+| 位置 | 做什么 |
+| --- | --- |
+| `Agents/PiUpdates.cs` | 查 Pi 与扩展有没有新版；钉住跳过、异常静默 |
+| `CenterHub` | `check_updates` 消息、`updates` 广播、连上时补一条缓存、启动后 20 秒 + 每 6 小时 |
+| `index.html` / `styles.css` / `app.js` | 输入框上方提示条、侧栏标记、设置页「运行时」卡片 |
+| `scripts/check-updates.mjs` | 命令行问一个跑着的实例要结果（排错用） |
+
+界面取值：`updates` 消息 `{ checkedAt, checking, pi: {...}, packages: [...] }`，每项带
+`installed / latest / hasUpdate / pinned / error`。没更新就不露任何东西。
