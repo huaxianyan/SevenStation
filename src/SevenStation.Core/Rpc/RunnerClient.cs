@@ -22,6 +22,18 @@ internal sealed class RunnerClient
     private static readonly object Gate = new();
     private static RunnerClient? _shared;
 
+    /// <summary>执行代理现在连着没有。设置页与 Control 靠它显示状态。</summary>
+    public static bool IsConnected
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _shared is { _dead: false };
+            }
+        }
+    }
+
     private readonly NamedPipeClientStream _pipe;
     private readonly StreamReader _reader;
     private readonly StreamWriter _writer;

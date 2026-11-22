@@ -22,6 +22,37 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-059：执行代理的登录任务 + Control 里的状态与重启（2026-11-22，未发版）
+
+STATUS-058 那三条现在都做完了，可以装。
+
+**登录自启**：Seven Station Control 每次启动都会建一遍计划任务「SevenStation Core Runner」
+（`schtasks /create /xml ... /f`，任务 XML 里是 `InteractiveToken` + 登录触发 + `ExecutionTimeLimit=PT0S`），
+建完顺手 `/run`，所以装好第一次打开 Control 就生效，不用注销重登。换成 exe 路径变了的老任务也没关系，
+每次都带 `/f` 重建。卸载时 MSI 自己把任务删掉（`WixQuietExec` 里调 `schtasks /delete`）。
+
+任务必须由用户这边建：服务账户建不了「跟着某个用户登录跑」的任务。核心只负责查询状态和叫人重启。
+
+**状态与重启**：
+
+- 核心新接口 `GET /api/runner` → `{ connected, pipe, task, registered, account, log }`；
+  `POST /api/runner/restart` → `schtasks /run`，任务没注册时回 409 并说明去哪打开。
+- Control 的连接卡片多一行「执行代理」：`已连上` / `没连上` / `未注册`，下面配一句为什么，
+  右边一个「重启」按钮（走已有的 `core_api`，没新增壳命令，省掉一次 ACL 登记）。
+
+**验证**：
+
+- 计划任务那套 XML 用真实 `schtasks /create|query|run|delete` 跑过一遍（rc 全 0，登录状态是「交互式」）。
+- 沙箱核心（临时 home、8958 端口）：没连上时 `connected:false`，真发一句话后变 `true`；
+  不带令牌 401；任务没注册时 `restart` 回 409 和那句提示。
+- `cargo test --release` 9 个测试全过（新加 3 个锁任务 XML：必须带 `--runner`、必须 `InteractiveToken`、
+  必须 `PT0S`、XML 特殊字符要转义、XML 文件要 UTF-16 带 BOM）。
+
+出包：`dist/SevenStationCore-win-x64-0.4.1.msi`（`d6b3073a52f685ce…`）。
+
+**还没验的**：普通（非管理员）用户建自己的登录任务这条路，以及装完之后「客户端里调工具是否跟终端一致」。
+这两条只有用户那边能验。
+
 ## STATUS-058：Pi 改由用户登录会话里的执行代理来起（2026-11-22，未发版）
 
 **为什么改**：服务跑在 Session 0 / SYSTEM，Pi 作为它的子进程也一样。用户实测在客户端里调工具

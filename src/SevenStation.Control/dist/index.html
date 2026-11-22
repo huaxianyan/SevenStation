@@ -386,6 +386,12 @@
       <span class="actions"><button class="link" id="addDevice">添加设备</button></span>
     </div>
     <div class="row">
+      <span class="label">执行代理</span>
+      <span class="value" id="runnerSummary">读取中…</span>
+      <span class="actions"><button class="link" id="restartRunner">重启</button></span>
+    </div>
+    <p class="hint" id="runnerHint" hidden></p>
+    <div class="row">
       <span class="label">数据目录</span>
       <span class="value mono" id="dataDir"></span>
       <span class="actions"><button class="link" id="openData">打开</button></span>
@@ -923,7 +929,44 @@
   listen('toast', (event) => toast(event.payload));
 
   send('ready');
+  // ── 执行代理：Pi 必须在登录的桌面会话里跑，这里显示它连没连上 ───────────
+  async function loadRunner() {
+    let data;
+    try {
+      data = JSON.parse(await coreApi('GET', '/api/runner'));
+    } catch {
+      el('runnerSummary').textContent = '读不到';
+      el('runnerHint').hidden = true;
+      return;
+    }
+
+    if (data.connected) {
+      el('runnerSummary').textContent = '已连上';
+      el('runnerHint').hidden = true;
+      return;
+    }
+
+    el('runnerSummary').textContent = data.registered ? '没连上' : '未注册';
+    el('runnerHint').textContent = data.registered
+      ? 'Pi 只能在登录后的桌面会话里运行。锁屏不影响；注销或停在登录界面时用不了。'
+      : '执行代理的登录任务还没注册，重新打开一次 Seven Station Control 就会建好。';
+    el('runnerHint').hidden = false;
+  }
+
+  el('restartRunner').addEventListener('click', async () => {
+    el('runnerSummary').textContent = '正在重启…';
+    try {
+      const result = JSON.parse(await coreApi('POST', '/api/runner/restart'));
+      toast(result.message || (result.started ? '已让执行代理重启。' : '没能重启执行代理。'));
+    } catch (error) {
+      toast(typeof error === 'string' ? error : '没能重启执行代理。');
+    }
+    setTimeout(() => loadRunner().catch(() => {}), 1500);
+  });
+
   loadDevices().catch(() => {});
+  loadRunner().catch(() => {});
+  setInterval(() => loadRunner().catch(() => {}), 5000);
 </script>
 </body>
 </html>

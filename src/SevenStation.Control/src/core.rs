@@ -422,7 +422,7 @@ fn wait_for_tries(running: bool, tries: u32) -> Result<(), String> {
     })
 }
 
-fn core_exe_path() -> Result<PathBuf, String> {
+pub fn core_exe_path() -> Result<PathBuf, String> {
     let current = std::env::current_exe().map_err(|error| format!("找不到自己的位置：{error}"))?;
     Ok(current
         .parent()

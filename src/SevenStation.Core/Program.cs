@@ -126,6 +126,40 @@ app.MapPost("/api/devices/{id}/revoke", (HttpContext context, string id) =>
 /// 把一段文字画成二维码（SVG）。Control 拿它直接塞进页面，自己不用引二维码库，
 /// Control 那边也就不必处理二进制响应。
 /// </summary>
+// 执行代理的状态：Pi 现在只在用户登录会话里跑，这里告诉界面连没连上、任务注册没有。
+app.MapGet("/api/runner", (HttpContext context) =>
+    Admin(context)
+        ? Results.Json(new
+        {
+            connected = SevenStation.Core.Rpc.RunnerClient.IsConnected,
+            pipe = SevenStation.Core.Rpc.RunnerClient.PipeName,
+            task = SevenStation.Core.Runner.RunnerTask.Name,
+            registered = SevenStation.Core.Runner.RunnerTask.IsRegistered(),
+            account = Environment.UserName,
+            log = System.IO.Path.Combine(SevenStation.Shared.ProductPaths.ClientHome, "logs", "runner.log"),
+        })
+        : Results.StatusCode(StatusCodes.Status401Unauthorized));
+
+app.MapPost("/api/runner/restart", (HttpContext context) =>
+{
+    if (!Admin(context)) return Results.StatusCode(StatusCodes.Status401Unauthorized);
+
+    if (!SevenStation.Core.Runner.RunnerTask.IsRegistered())
+    {
+        return Results.Json(
+            new { started = false, message = "还没注册执行代理的登录任务，先在 Seven Station Control 里打开一次。" },
+            statusCode: StatusCodes.Status409Conflict);
+    }
+
+    var started = SevenStation.Core.Runner.RunnerTask.Start();
+    Log.Write(started ? "让执行代理重启" : "启动执行代理失败");
+    return Results.Json(new
+    {
+        started,
+        message = started ? "已让执行代理重启。" : "启动执行代理失败，看 Control 的日志。",
+    });
+});
+
 app.MapGet("/api/qr", (HttpContext context, string? data) =>
 {
     if (!Admin(context)) return Results.StatusCode(StatusCodes.Status401Unauthorized);

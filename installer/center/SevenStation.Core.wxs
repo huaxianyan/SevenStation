@@ -38,8 +38,16 @@
     <CustomAction Id="KillRunningOnRemove" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
                   Execute="immediate" Return="ignore" />
 
+    <!-- 卸载时把执行代理的登录任务一起带走：任务留着也只会指向一个不存在的 exe。
+         任务名要和 Seven Station Control 建的那个一致。 -->
+    <Property Id="RemoveRunnerTask"
+              Value="&quot;[System64Folder]schtasks.exe&quot; /delete /tn &quot;SevenStation Core Runner&quot; /f" />
+    <CustomAction Id="RemoveRunnerTask" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec"
+                  Execute="immediate" Return="ignore" />
+
     <InstallExecuteSequence>
       <Custom Action="KillRunningOnInstall" Before="InstallFiles" Condition="1" />
+      <Custom Action="RemoveRunnerTask" Before="RemoveFiles" Condition='REMOVE~="ALL"' />
       <Custom Action="KillRunningOnRemove" Before="RemoveFiles" Condition='REMOVE~="ALL"' />
     </InstallExecuteSequence>
 

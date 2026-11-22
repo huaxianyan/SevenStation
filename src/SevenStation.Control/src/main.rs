@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod core;
+mod runner;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -338,6 +339,16 @@ fn main() {
             });
 
             build_tray(app)?;
+
+            // 登录任务：Pi 必须在用户会话里跑，这个任务就是登录后把执行代理拉起来的那根钉子。
+            // 建它不需要管理员（在给自己建），失败也只是没有代理，页面上会说清楚。
+            std::thread::spawn(|| match core::core_exe_path() {
+                Ok(exe) => match runner::ensure(&exe) {
+                    Ok(message) => log_line(&format!("执行代理：{message}")),
+                    Err(message) => log_line(&format!("执行代理没挂上：{message}")),
+                },
+                Err(message) => log_line(&format!("执行代理没挂上：{message}")),
+            });
 
             // 每 3 秒把状态推一次；服务和监听地址都可能被别处改动。
             let poller = app.handle().clone();
