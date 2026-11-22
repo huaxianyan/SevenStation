@@ -1178,7 +1178,11 @@ function turnParts(turn) {
         segments.push({ kind: 'text', text: block.text });
         texts.push(block.text);
         group = null;
-      } else if (block.type === 'thinking' && block.text) {
+      } else if (block.type === 'thinking') {
+        // 有的模型偶尔给一段空白思考（只有一个空格）。画出来就是一行空步骤，
+        // 点开什么都没有，还平白多算一步。干脆不画。
+        if (!String(block.text || '').trim()) continue;
+
         if (!group) {
           group = { kind: 'work', entries: [] };
           segments.push(group);
