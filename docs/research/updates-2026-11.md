@@ -75,6 +75,17 @@ registry.npmjs.org/@earendil-works/pi-coding-agent/latest   1.6.0   ← 确实�
 `~/.pi/agent/install` 并可能调 npm/git，用的是用户的环境。Core 在 Session 0 里直接跑，拿到的是 SYSTEM 的
 环境变量与凭据，容易装到奇怪的地方去。
 
+2026-11-22 现场核对（本机装的是 v0.4.0，服务形态）：
+
+```text
+pid 56576  会话 0  owner=<SYSTEM>            监听 0.0.0.0:8787   ← Seven Station Core（服务）
+pid  7320  会话 1  owner=BAHAMUTinaBranford  命令行含 --runner   ← 执行代理（用户态）
+```
+
+也就是说：**Core 本身不是用户态**，用户态的是执行代理。但凡「Core 直接起一个子进程」的动作，
+拿到的都是 SYSTEM 的环境与家目录；我们自己也有一处专门为这件事打的补丁（`CoreSettings` 里
+systemprofile 那段注释），所以升级更不能再走捷径。
+
 **执行代理要加一条受控通道**：现在它只会按 Core 给的 exe/参数/cwd 起 Pi（`--mode rpc`）。
 升级需要的是「跑一次 `pi` 的命令行，把输出流回来」：
 - 白名单只允许 `pi update [--self|--extensions|--models|--all|source]`，不接受任意命令；
