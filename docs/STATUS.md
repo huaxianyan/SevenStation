@@ -22,6 +22,30 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-070：给 Pi 注入「Windows 常见坑」（2026-11-22，未发版）
+
+用户要求：把 Windows 上最常见、最关键的盲区提前注入给 Pi，别总结太多，要最普遍的那种（比如路径拼接）。
+
+素材来自 `E:/Dev/AgentHistory`（machine/AGENTS.md 的跨机器规则、workspace 流水、本项目归档），挑出反复出现、
+代价最大的八条写进 `Agents/pi-guidance.md` 的「Windows 上容易踩的坑」：
+
+1. 反斜杠别经过两层转义：heredoc 喂 python 时双反斜杠会折叠成单个，`\t`／`\n`／`\U` 直接变控制字符，
+   路径写坏了 `git diff` 还看不出来；必须内联时用 `chr(92)` 拼。
+2. 路径一律绝对、拼接用 `Join-Path`／`Path.Combine`，带空格加引号，别假设 `/tmp` 之类一定存在。
+3. 停进程只按 PID，绝不 `taskkill /IM`（按镜像名会连带杀掉用户正在用的进程，本机栽过两次）。
+4. `Start-Process` 不能把 stdout 与 stderr 重定向到同一个文件。
+5. 控制台是 GBK；脚本写 UTF-8，给 PowerShell 5.1 的 `.ps1` 要带 BOM。
+6. 别改换行（CRLF/LF 混用会让 diff 爆成整篇差异）。
+7. 改 HKLM、建计划任务、动服务要管理员，要提权就说清楚。
+8. 删文件／目录失败多为句柄未放开，先找占用进程。
+
+**验证**：让带注入的 Pi 往文件里写一行带盘符的绝对路径并自己打印十六进制——落盘是
+`45 3a 5c 44 65 76 5c …`，三个反斜杠都是单个 `5c`，没有控制字符（19 秒）。
+
+顺便记一笔：写这份 STATUS 时我自己又踩了第 1 条（python heredoc 里的反斜杠被折叠），改用 edit 工具落下才对得上。
+
+出包：`dist/SevenStationCore-win-x64-0.4.1.msi`（`ea53da8b6518414f…`）。
+
 ## STATUS-069：让 Pi 用中文思考 / 回答（外加一个并行调用的真 bug）（2026-11-22，未发版）
 
 用户要 Pi 在思考、过程说明、回答里都用中文，方式跟以前一样走 `--append-system-prompt` 注入
