@@ -2,9 +2,9 @@
 //
 // 前置：核心与代理都在跑，且用同一个 SEVENSTATION_RUNNER_PIPE。
 // 沙箱起法（临时 home，别用 8787）：
-//   SEVENSTATION_CORE_HOME=E:\tmp\runner-home dotnet SevenStation.Core.dll --runner &
-//   SEVENSTATION_CORE_HOME=E:\tmp\runner-home SEVENSTATION_LISTEN=http://127.0.0.1:8937 dotnet SevenStation.Core.dll &
-// 用法：node scripts/runner-smoke.mjs --port 8937 --home E:\tmp\runner-home --cwd E:\tmp\runner-cwd
+//   SEVENSTATION_CORE_HOME=work\smoke\runner-home dotnet SevenStation.Core.dll --runner &
+//   SEVENSTATION_CORE_HOME=work\smoke\runner-home SEVENSTATION_LISTEN=http://127.0.0.1:8937 dotnet SevenStation.Core.dll &
+// 用法：node scripts/runner-smoke.mjs --port 8937 --home work\smoke\runner-home --cwd work\smoke\runner-cwd
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

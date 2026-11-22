@@ -14,7 +14,7 @@ const content = () => [
   { type: 'text', text: '目录里有两个文件。' },
 ];
 
-const session = { key: 'c-1', cwd: 'E:/tmp/demo', streaming: false, items: [] };
+const session = { key: 'c-1', cwd: 'E:/Dev/SevenStation', streaming: false, items: [] };
 const turn = {
   items: [
     { id: 'u1', kind: 'user', text: '看下项目', ts: 1000 },
@@ -78,7 +78,7 @@ ok(assistant.querySelectorAll('.md')[0] === keptText, '更早那段一个节点�
 
 // 回答后又调工具 = 新的一段，结构变了交给整轮重画
 const more = JSON.parse(JSON.stringify(turn));
-more.items[1].blocks.push({ id: 't3', type: 'toolCall', name: 'bash', args: { command: 'pwd' }, text: 'E:/tmp/demo', done: true, durationMs: 3, ts: 1300 });
+more.items[1].blocks.push({ id: 't3', type: 'toolCall', name: 'bash', args: { command: 'pwd' }, text: 'E:/Dev/SevenStation', done: true, durationMs: 3, ts: 1300 });
 ok(window.__updateLiveTurn(node, more) === false, '结构变了就整轮重画（一轮只发生一次）');
 const rebuilt = window.__renderTurn(more, session, true);
 ok([...rebuilt.querySelector('.msg.assistant').children][2].classList.contains('work'), '重画后新工作段仍排在正文后面');

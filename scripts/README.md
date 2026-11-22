@@ -9,7 +9,7 @@
 ```powershell
 pwsh -File scripts/dev-run.ps1
 # 想隔离会话记录（不污染真实会话）时：
-pwsh -File scripts/dev-run.ps1 -SessionDir E:\tmp\pigui-sessions
+pwsh -File scripts/dev-run.ps1 -SessionDir work\smoke\sessions
 ```
 
 启动后可以用 `scripts/ui-smoke.mjs` 连上去检查界面。
@@ -42,7 +42,7 @@ pwsh -File scripts/install-autostart.ps1 -Remove # 卸掉
 看到流式状态 → 收尾生效 → 正文非空。失败时打印页面异常并以非零码退出。
 
 ```bash
-node scripts/ui-smoke.mjs --cwd E:\tmp\pigui-smoke-ws
+node scripts/ui-smoke.mjs --cwd work\smoke\ui-ws
 ```
 
 前置条件：应用已经用 `--remote-debugging-port=9222` 启动（`dev-run.ps1` 会做）。

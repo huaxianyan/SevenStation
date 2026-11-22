@@ -1,6 +1,6 @@
 // 界面冒烟：用 CDP 驱动真实窗口跑一遍主链路。
 // 前置：应用已用 --remote-debugging-port=9222 启动（scripts/dev-run.ps1 会做）。
-// 用法：node scripts/ui-smoke.mjs --cwd E:\tmp\pigui-smoke-ws
+// 用法：node scripts/ui-smoke.mjs --cwd work\smoke\ui-ws
 import { existsSync } from 'node:fs';
 
 const args = process.argv.slice(2);

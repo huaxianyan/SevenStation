@@ -3,7 +3,7 @@ const { boot, checker } = require('./boot');
 
 const { window, document } = boot(`
   window.__boot = function (messages) {
-    const session = makeSession('c1', { isStreaming: true }, messages, 'E:/tmp/demo');
+    const session = makeSession('c1', { isStreaming: true }, messages, 'E:/Dev/SevenStation');
     app.byKey.set('c1', session);
     app.currentKey = 'c1';
     session.streaming = true;

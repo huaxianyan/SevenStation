@@ -3,11 +3,11 @@ const { boot, checker } = require('./boot');
 
 const { window } = boot(`
   window.__hook = function (key) {
-    const session = makeSession(key, { isStreaming: false }, [], 'E:/tmp/demo');
+    const session = makeSession(key, { isStreaming: false }, [], 'E:/Dev/SevenStation');
     app.byKey.set(key, session);
     return session;
   };
-  window.__open = function (id) { openSession({ id, cwd: 'E:/tmp/demo' }); };
+  window.__open = function (id) { openSession({ id, cwd: 'E:/Dev/SevenStation' }); };
   window.__input = el.input;
   window.__state = app;
 `);

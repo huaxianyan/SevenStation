@@ -2,7 +2,7 @@
 #
 # 用法：
 # pwsh -File scripts/dev-run.ps1
-# pwsh -File scripts/dev-run.ps1 -SessionDir E:\tmp\pigui-sessions
+# pwsh -File scripts/dev-run.ps1 -SessionDir work\smoke\sessions
 # pwsh -File scripts/dev-run.ps1 -Listen http://0.0.0.0:8787 # 给局域网里的别的设备连
 param(
     [string]$SessionDir = "",
