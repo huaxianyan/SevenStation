@@ -170,6 +170,8 @@ const app = {
   filter: '',
   currentKey: null,
   byKey: new Map(),
+  // 上一次画的是哪个会话：换会话要落到底，同一会话重画就别动滚动位置。
+  renderedKey: null,
   // 每个会话各自的草稿：切会话换一份，别把 A 里没发出去的话带到 B。
   drafts: new Map(),
   activeCwd: '',
@@ -1408,6 +1410,7 @@ function groupWork(work) {
 function workGroup(work, collapsed, turnMs, since, session, turnKey) {
   const wrap = document.createElement('div');
   wrap.className = 'work';
+  wrap.dataset.key = turnKey || '';
 
   const ui = session ? uiOf(session) : null;
 
@@ -1532,6 +1535,8 @@ function workRowNode(rows, index) {
 
   const item = document.createElement('div');
   item.className = 'st-item';
+  item.dataset.step = String(first.block?.id || '');
+  item.rowData = row;
 
   const node = document.createElement('div');
   node.className = 'st-row' + (row.kind === 'thinking' ? ' is-thinking' : '');
@@ -1548,7 +1553,7 @@ function workRowNode(rows, index) {
   node.tabIndex = 0;
   node.setAttribute('role', 'button');
   node.title = '点开看这一步的完整内容';
-  node.addEventListener('click', () => toggleStepDetail(item, rows, index));
+  node.addEventListener('click', () => toggleStepDetail(item));
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -1626,7 +1631,16 @@ function closeStepDetail() {
   openStep = null;
 }
 
-function toggleStepDetail(item, rows, index) {
+function openStepDetail(item) {
+  const detail = item.querySelector('.st-more');
+  if (!detail || !item.rowData) return;
+  renderStepDetail(detail, item.rowData);
+  detail.hidden = false;
+  item.classList.add('is-open');
+  openStep = { item, detail, key: item.closest('.work')?.dataset.key || '', step: item.dataset.step || '' };
+}
+
+function toggleStepDetail(item) {
   const detail = item.querySelector('.st-more');
 
   if (openStep && openStep.detail === detail) {
@@ -1635,15 +1649,29 @@ function toggleStepDetail(item, rows, index) {
   }
 
   closeStepDetail();
-  renderStepDetail(detail, rows, index);
-  detail.hidden = false;
-  item.classList.add('is-open');
-  openStep = { item, detail, rows, index };
+  openStepDetail(item);
+}
+
+/**
+ * 整轮重画（新步骤、正文流式、会话刷新）之后，把用户原本展开着的那一条原样挂回去。
+ * 以前重画就等于「自动收起」，还在工作的时候一有新步骤就把人看的那条关掉。
+ */
+function restoreOpenDetail() {
+  if (!openStep) return;
+
+  const wanted = { key: openStep.key, step: openStep.step };
+  openStep = null;
+  if (!wanted.step) return;
+
+  const wrap = Array.from(el.thread.querySelectorAll('.work')).find((node) => node.dataset.key === wanted.key);
+  if (!wrap) return;
+
+  const item = Array.from(wrap.querySelectorAll('.st-item')).find((node) => node.dataset.step === wanted.step);
+  if (item) openStepDetail(item);
 }
 
 /** 详情里那张卡片：状态、耗时、目录，然后是这一组的全部内容。 */
-function renderStepDetail(detail, rows, index) {
-  const row = rows[index];
+function renderStepDetail(detail, row) {
   if (!row) return;
 
   const first = row.entries[0];
@@ -1716,9 +1744,9 @@ function renderStepDetail(detail, rows, index) {
 /** 这一步正在被更新：展开着就把内容也换新（跑着的输出会一直长）。 */
 function refreshStepDetail(entry) {
   if (!openStep) return;
-  const row = openStep.rows[openStep.index];
-  if (!row || !row.entries.some((candidate) => candidate === entry)) return;
-  renderStepDetail(openStep.detail, openStep.rows, openStep.index);
+  const row = openStep.item.rowData;
+  if (!row || !row.entries.some((candidate) => candidate.block === entry.block)) return;
+  renderStepDetail(openStep.detail, row);
 }
 
 /** Esc 收掉展开的那一条。 */
@@ -1909,6 +1937,9 @@ function toolSummary(block) {
 function renderThread(keepAnchor) {
   const session = current();
   const anchor = keepAnchor && session ? el.thread.scrollHeight - el.thread.scrollTop : 0;
+  // 同一个会话重画：原来贴底才跟着到底，否则原地不动（不然一有事件就把人拽回底部）。
+  const sameSession = app.renderedKey === (session ? session.key : null);
+  const stayAtBottom = !sameSession || atBottom();
   app.turnNodes = [];
   el.threadInner.innerHTML = '';
   if (!session) return;
@@ -1924,10 +1955,12 @@ function renderThread(keepAnchor) {
 
   if (keepAnchor) {
     el.thread.scrollTop = el.thread.scrollHeight - anchor;
-  } else {
+  } else if (stayAtBottom) {
     scrollToBottom(true);
   }
 
+  app.renderedKey = session ? session.key : null;
+  restoreOpenDetail();
   renderQueue();
 }
 
@@ -2103,6 +2136,7 @@ function patchItem(item) {
   known.node.replaceWith(node);
   known.node = node;
   known.items = turn.items;
+  restoreOpenDetail();
 }
 
 /**
@@ -2141,12 +2175,21 @@ function updateLiveTurn(node, turn) {
 
   const rows = groupWork(last.entries);
 
-  // 步骤数变了（换步骤，或者又合并进一条）：只重画这一组的身子。
+  // 步骤数变了。多数情况是「又多了几步」——那就往后追加，
+  // 前面的行（包括正展开着详情的那一条）一个都不动；只有变少才重画这一组。
   if (body.children.length !== rows.length) {
-    body.innerHTML = '';
-    rows.forEach((row, index) => body.appendChild(workRowNode(rows, index)));
+    if (body.children.length > rows.length) {
+      body.innerHTML = '';
+      rows.forEach((row, index) => body.appendChild(workRowNode(rows, index)));
+    } else {
+      for (let index = body.children.length; index < rows.length; index++) {
+        body.appendChild(workRowNode(rows, index));
+      }
+    }
+
     if (typeof wrap.follow === 'function') wrap.follow();
     updateWorkHead(wrap, last.entries);
+    restoreOpenDetail();
     return true;
   }
 
@@ -2155,6 +2198,7 @@ function updateLiveTurn(node, turn) {
   const targetId = String(target.block?.id || '');
   if ((row.dataset.lastStep || row.dataset.step) !== targetId) return false;
 
+  row.rowData = rows[rows.length - 1];
   updateLiveRow(row, target, rows[rows.length - 1]);
 
   if (typeof wrap.follow === 'function') wrap.follow();
