@@ -1,0 +1,12 @@
+{
+  "name": "sevenstation-ui-tests",
+  "private": true,
+  "type": "commonjs",
+  "description": "界面逻辑的离线检查：把 wwwroot 里的脚本塞进 jsdom，直接喂事件看 DOM。",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

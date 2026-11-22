@@ -22,3 +22,6 @@ installer/**/*.wixobj
 # Python 缓存
 __pycache__/
 *.pyc
+
+# 界面检查脚本的依赖
+scripts/ui-tests/node_modules/
