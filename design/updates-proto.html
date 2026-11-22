@@ -2,109 +2,262 @@
 <html lang="zh-CN" data-theme="light" data-palette="paper">
 <head>
 <meta charset="utf-8">
-<title>版本与更新 · 原型</title>
+<title>版本与更新 · 原型 v2</title>
 <link rel="stylesheet" href="../src/SevenStation.Core/wwwroot/styles.css">
 <style>
-  /* 原型自己的排版：直接把产品的卡片/行/徽标摆出来，不重复造样式。 */
+  /* 原型自己的排版：产品样式照抄，这里只补排版与几个新构件。 */
   body { margin: 0; padding: 26px 30px 60px; background: var(--page); color: var(--text); font-family: var(--font); }
   .proto-title { margin: 0 0 4px; font-size: calc(17px * var(--fs-ui)); font-weight: 600; }
   .proto-lede { margin: 0 0 22px; font-size: calc(12.5px * var(--fs-ui)); color: var(--text-mute); }
-  .block { margin-bottom: 30px; }
+  .block { margin-bottom: 34px; }
   .block > h2 { margin: 0 0 2px; font-size: calc(13.5px * var(--fs-ui)); font-weight: 600; }
   .block > .why { margin: 0 0 12px; font-size: calc(12px * var(--fs-ui)); color: var(--text-faint); }
-  .stage { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
-  .frame { width: 560px; background: var(--page); }
-  .frame.wide { width: 720px; }
-  .frame .page-card { margin: 0; }
+  .stage-row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* 主界面缩略：把真实的 shell 摆出来，只是尺寸收一点。 */
+  .mini-window { width: 880px; height: 520px; border: 1px solid var(--border-strong); border-radius: 12px; overflow: hidden; background: var(--card); }
+  .mini-window .window { height: 100%; flex: 1; }
+  .mini-window .sidebar { --sidebar-w: 232px; }
+  .mini-window .content { padding-bottom: 0; }
+  .mini-window .thread-inner { padding: 18px 24px 0; }
+  .mini-window .msg { margin-bottom: 14px; }
+  .mini-window .composer { padding: 10px 24px 16px; }
+
+  /* ① 更新提示条：贴着输入框上方的一条，不抢正文。 */
+  .upd-strip {
+    display: flex; align-items: center; gap: 10px;
+    margin: 0 0 10px; padding: 8px 12px;
+    background: var(--card); border: 1px solid var(--border-strong);
+    border-radius: 10px; box-shadow: 0 2px 8px rgba(16, 16, 20, .04);
+    font-size: calc(12.5px * var(--fs-ui)); color: var(--text-dim);
+  }
+  .upd-dot { width: 7px; height: 7px; border-radius: 50%; background: #c8891a; flex: 0 0 auto; }
+  .upd-text { flex: 1; min-width: 0; }
+  .upd-text strong { font-weight: 600; color: var(--text); }
+  .upd-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+  .upd-strip .ghost-btn.small { background: var(--card); }
+  .upd-strip.busy { background: var(--panel); }
+  .upd-strip.busy .upd-dot { background: var(--text-mute); animation: pulse 1.2s ease-in-out infinite; }
+  .upd-strip.done { border-color: color-mix(in oklab, var(--green) 35%, var(--border)); }
+  .upd-strip.done .upd-dot { background: var(--green); }
+  @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* ② 侧栏上的「有更新」提示：数量徽标换成强调色的点 + 行内一行小字。 */
+  .nav-item .nav-update { width: 7px; height: 7px; border-radius: 50%; background: #c8891a; flex: 0 0 auto; }
+  .nav-item .nav-count.is-update { color: #a9711a; }
+
   .page-head { margin-bottom: 14px; align-items: center; }
   .page-head-right { display: flex; gap: 8px; align-items: center; }
   .kv-value { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .gap-badge { color: var(--text-faint); }
-  .sub { display: block; margin-top: 3px; font-size: calc(11.5px * var(--fs-ui)); color: var(--text-faint); }
+  .frame { width: 560px; }
+  .frame.wide { width: 720px; }
+  .frame .page-card { margin: 0; }
+  .mini-note { margin: 10px 0 0; font-size: calc(11.5px * var(--fs-ui)); color: var(--text-faint); }
   .proto-toasts { position: static; width: auto; padding: 0; gap: 10px; }
   .proto-toasts .toast { position: static; }
-  .mini-note { margin: 10px 0 0; font-size: calc(11.5px * var(--fs-ui)); color: var(--text-faint); }
+  .copy-table { border-collapse: collapse; font-size: calc(12.5px * var(--fs-ui)); }
+  .copy-table th, .copy-table td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
+  .copy-table th { background: var(--panel); font-weight: 600; }
+  .copy-table td.bad { color: var(--text-mute); text-decoration: line-through; }
 </style>
 </head>
 <body>
 
-<h1 class="proto-title">版本与更新 · 原型</h1>
-<p class="proto-lede">照着 Pi 自己的判定（pinned 跳过、npm 比 semver、git 比上游 ls-remote）。所有样式取自产品的 styles.css，不是另画一套。</p>
+<h1 class="proto-title">版本与更新 · 原型 v2</h1>
+<p class="proto-lede">定期自动查（启动后 + 每 6 小时，静默）；查到就在主界面上提示，点一下直接开始升级。
+文案按人的说法写，不用「冒烟」「冒烟测试」这类内部词。</p>
 
 <div class="block">
-  <h2>A · 设置页：运行时卡片</h2>
-  <p class="why">放在「连接」下面。只读的部分一眼能看完：版本、什么时候检查的、有没有新版。动作收在右边两个按钮里。</p>
-  <div class="stage">
-    <div class="frame">
-      <div class="page-card">
-        <h3>运行时</h3>
+  <h2>A · 主界面：输入框上方一条提示</h2>
+  <p class="why">不挡正文、不弹窗。查到有新版就在这儿出现，右二是「稍后」（本机今天不再提），右一是「升级」直接进流程。</p>
 
-        <div class="kv-row">
-          <span class="kv-key">Pi</span>
-          <span class="kv-value">
-            <span>1.5.2</span>
-            <span class="gap-badge">→</span>
-            <strong>1.6.0</strong>
-            <span class="badge badge-warn">有新版</span>
-            <button class="ghost-btn small">升级 Pi</button>
-            <button class="ghost-btn small">检查更新</button>
-          </span>
+  <div class="stage-row">
+    <div class="mini-window">
+      <div class="window">
+        <aside class="sidebar">
+          <div class="sidebar-head">
+            <button class="icon-btn" title="收起边栏"><svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2.5"/><path d="M6.5 2.5v11"/></svg></button>
+          </div>
+          <button class="new-thread"><span class="plus">+</span>新建对话</button>
+          <nav class="nav">
+            <button class="nav-item"><span class="nav-icon">◧</span>对话<span class="nav-count">2</span></button>
+            <button class="nav-item"><span class="nav-icon">✦</span>技能<span class="nav-count">18</span></button>
+            <button class="nav-item"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"></span></button>
+            <button class="nav-item"><span class="nav-icon">≡</span>设置</button>
+          </nav>
+          <div class="threads-head"><span class="threads-title">对话</span></div>
+        </aside>
+
+        <div class="main">
+          <div class="content">
+            <div class="thread visible">
+              <div class="thread-inner">
+                <div class="msg user"><div class="bubble"><div class="md"><p>把字体设置加上，字号放大别夹字。</p></div></div></div>
+                <div class="msg assistant"><div class="md"><p>三个区域各四档，已经加好。放大后设置页那列标签会折行，这块也一并修了。</p></div></div>
+              </div>
+            </div>
+
+            <div class="composer">
+              <div class="upd-strip">
+                <span class="upd-dot"></span>
+                <span class="upd-text">Pi 有新版本 <strong>1.5.2 → 1.6.0</strong></span>
+                <span class="upd-actions">
+                  <button class="ghost-btn small">稍后</button>
+                  <button class="ghost-btn small">升级</button>
+                </span>
+              </div>
+
+              <div class="composer-box">
+                <textarea placeholder="继续问点什么…" rows="1"></textarea>
+              </div>
+              <div class="hint"></div>
+            </div>
+          </div>
         </div>
-
-        <div class="kv-row">
-          <span class="kv-key">模型目录</span>
-          <span class="kv-value">
-            <span>3 天前刷新</span>
-            <button class="ghost-btn small">刷新</button>
-          </span>
-        </div>
-
-        <p class="page-note">升级只换 <code>install/current-version</code>，旧版本目录留着，出问题能回退一步。模型清单缓存 24 小时过期，上面那个刷新是强制重取。</p>
       </div>
     </div>
 
     <div class="frame">
       <div class="page-card">
-        <h3>其余几种状态</h3>
-        <div class="kv-row">
-          <span class="kv-key">Pi</span>
-          <span class="kv-value"><span>1.6.0</span><span class="badge badge-soft">已是最新</span><button class="ghost-btn small">检查更新</button></span>
+        <h3>这同一条的其它状态</h3>
+
+        <div class="upd-strip busy" style="margin-bottom:12px">
+          <span class="upd-dot"></span>
+          <span class="upd-text">正在升级 Pi… 下载安装大概要一分钟，别关窗口</span>
         </div>
-        <div class="kv-row">
-          <span class="kv-key">Pi</span>
-          <span class="kv-value"><span>1.5.2</span><span class="badge badge-plain">检查中…</span><button class="ghost-btn small" disabled>升级 Pi</button></span>
+
+        <div class="upd-strip done" style="margin-bottom:12px">
+          <span class="upd-dot"></span>
+          <span class="upd-text">已升级到 <strong>1.6.0</strong>，新开的对话就用这个版本</span>
         </div>
-        <div class="kv-row">
-          <span class="kv-key">Pi</span>
-          <span class="kv-value"><span>1.5.2</span><span class="sub" style="margin:0">检查失败：连不上 registry.npmjs.org</span><button class="ghost-btn small">重试</button></span>
+
+        <div class="upd-strip" style="margin-bottom:12px">
+          <span class="upd-dot"></span>
+          <span class="upd-text">Pi 有新版本 1.5.2 → 1.6.0 · 升级要用 github 下载，约 40 MB</span>
+          <span class="upd-actions"><button class="ghost-btn small">稍后</button><button class="ghost-btn small">升级</button></span>
         </div>
-        <div class="kv-row">
-          <span class="kv-key">Pi</span>
-          <span class="kv-value"><span>1.6.0</span><span class="badge badge-warn">正在升级</span><span class="sub" style="margin:0">从 1.5.2 升上来，约 35 秒</span></span>
-        </div>
-        <p class="mini-note">失败不藏起来：说清楚是网络问题还是版本冒烟没过。</p>
+
+        <p class="page-note" style="margin-top:14px">升级中途失败就停在这儿，把原因写清楚（见 D 区），当前版本照旧能用。</p>
       </div>
     </div>
   </div>
 </div>
 
 <div class="block">
-  <h2>B · 扩展页：有新版才多一个徽标</h2>
-  <p class="why">判定照 Pi：npm 比 semver，git 比上游 <code>ls-remote</code>；钉住的（带任何 ref）与本地包不检查，直接写出来，免得用户以为漏了。</p>
-  <div class="stage">
+  <h2>B · 侧栏：扩展那一条自己会亮</h2>
+  <p class="why">扩展有更新时，「扩展」这一行的数量变成橙色并在后面加一个点；点进扩展页就是 D 区那样，每行标出哪个有新版。</p>
+  <div class="stage-row">
+    <div class="frame">
+      <div class="page-card">
+        <h3>侧栏两态</h3>
+        <nav class="nav" style="display:flex;flex-direction:column;gap:2px">
+          <button class="nav-item"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span></button>
+          <button class="nav-item is-active"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"></span></button>
+        </nav>
+        <p class="page-note" style="margin-top:12px">数字始终是「装了几个」，有新版就多一个橙点；具体几个在扩展页里看，不把两个数挤在一起。</p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="page-card">
+        <h3>检查节奏（不占用户时间）</h3>
+        <div class="kv-row"><span class="kv-key">启动后</span><span class="kv-value"><span>20 秒，避开首屏</span></span></div>
+        <div class="kv-row"><span class="kv-key">之后</span><span class="kv-value"><span>每 6 小时一次，结果缓存</span></span></div>
+        <div class="kv-row"><span class="kv-key">失败时</span><span class="kv-value"><span>不提示，只在设置页写明原因</span></span></div>
+        <div class="kv-row"><span class="kv-key">连不上网</span><span class="kv-value"><span>直接跳过（<code>PI_OFFLINE</code> 时也不查）</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="block">
+  <h2>C · 设置页：还是这里做完整的事</h2>
+  <p class="why">主界面那条只是提醒。想看细节、想手动检查、想升级扩展，都在设置页这张卡片里。</p>
+  <div class="stage-row">
+    <div class="frame">
+      <div class="page-card">
+        <h3>运行时</h3>
+        <div class="kv-row">
+          <span class="kv-key">Pi</span>
+          <span class="kv-value">
+            <span>1.5.2</span><span class="gap-badge">→</span><strong>1.6.0</strong>
+            <span class="badge badge-warn">有新版</span>
+            <button class="ghost-btn small">升级 Pi</button>
+            <button class="ghost-btn small">检查更新</button>
+          </span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">扩展</span>
+          <span class="kv-value"><span>7 个已装，1 个有新版</span><button class="ghost-btn small">去看</button></span>
+        </div>
+        <div class="kv-row">
+          <span class="kv-key">模型目录</span>
+          <span class="kv-value"><span>3 天前刷新</span><button class="ghost-btn small">刷新</button></span>
+        </div>
+        <p class="page-note">升级只换 <code>install/current-version</code>，旧版本目录留着，出问题能退回上一个版本。模型清单缓存 24 小时过期，这里能强制重取。</p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="page-card">
+        <h3>检查失败长这样</h3>
+        <div class="kv-row"><span class="kv-key">Pi</span><span class="kv-value">
+          <span>1.5.2</span>
+          <span class="badge badge-plain">检查中…</span>
+          <button class="ghost-btn small" disabled>升级 Pi</button>
+        </span></div>
+        <div class="kv-row"><span class="kv-key">Pi</span><span class="kv-value">
+          <span>1.5.2</span>
+          <span style="color:var(--text-mute)">上次检查失败：连不上更新服务器</span>
+          <button class="ghost-btn small">重试</button>
+        </span></div>
+        <div class="kv-row"><span class="kv-key">Pi</span><span class="kv-value">
+          <span>1.6.0</span><span class="badge badge-soft">已是最新</span>
+        </span></div>
+        <p class="page-note">失败原因分两种：连不上服务器 / 新版本装好了但打不开。后者会写「已经保持原样，还在 1.5.2」。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="block">
+  <h2>D · 升级过程与失败：一张卡片翻面</h2>
+  <p class="why">沿用现有通知卡片，进行中带转圈，结束时原地换字，不弹第二个。</p>
+  <div class="stage-row">
+    <div class="frame">
+      <div class="proto-toasts" style="display:flex;flex-direction:column">
+        <div class="toast is-busy"><span class="toast-spin"></span><span class="toast-text">正在下载 Pi 1.6.0…</span></div>
+        <div class="toast"><span class="toast-text">Pi 已升级到 1.6.0，新开的对话就用这个版本</span></div>
+        <div class="toast error"><span class="toast-text">升级没成功：新版本装好了但打不开（这台电脑的 node 版本太旧）。已经保持原样，还在 1.5.2。</span></div>
+        <div class="toast error"><span class="toast-text">升级没成功：连不上更新服务器，网络或代理的问题。稍后再试一次。</span></div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="page-card">
+        <h3>失败之后</h3>
+        <p class="page-note">升级失败不影响现在用的版本。已经升上去又觉得不对，可以退回上一个：</p>
+        <div class="kv-row">
+          <span class="kv-key">可退回</span>
+          <span class="kv-value"><span>1.5.2</span><button class="ghost-btn small">退回并重启 Pi</button></span>
+        </div>
+        <p class="page-note">只能退一步——Pi 自己的更新只保留「当前版本 + 刚被替换掉的那个」。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="block">
+  <h2>E · 扩展页 / 技能页</h2>
+  <p class="why">扩展页每行标出「有新版」，钉住与本地的直接写清楚为什么不检查；技能页只加来源，不加版本。</p>
+  <div class="stage-row">
     <div class="frame wide">
       <div class="page-head">
-        <div>
-          <h2>扩展</h2>
-        </div>
-        <div class="page-head-right">
-          <button class="ghost-btn">检查更新</button>
-          <button class="ghost-btn">刷新</button>
-        </div>
+        <div><h2>扩展</h2></div>
+        <div class="page-head-right"><button class="ghost-btn">更新全部</button><button class="ghost-btn">检查更新</button></div>
       </div>
-
       <div class="page-card">
-        <h3>扩展包</h3>
         <div class="item-list">
           <div class="item-row">
             <div class="item-top">
@@ -112,10 +265,10 @@
               <span class="badge badge-soft">git</span>
               <span class="badge badge-plain">0.1.0</span>
               <span class="badge badge-warn">有新版 1bfeccd</span>
+              <button class="ghost-btn small">更新</button>
             </div>
-            <span class="item-path">E:\Users\…\.pi\agent\git\github.com\microsoft\TokenEconomizer</span>
+            <span class="item-path">…\git\github.com\microsoft\TokenEconomizer</span>
           </div>
-
           <div class="item-row">
             <div class="item-top">
               <span class="item-name">pi-web-access</span>
@@ -123,75 +276,32 @@
               <span class="badge badge-plain">0.48.0</span>
               <span class="badge badge-soft">已是最新</span>
             </div>
-            <span class="item-path">C:\Users\…\.pi\agent\npm\node_modules\pi-web-access</span>
+            <span class="item-path">…\npm\node_modules\pi-web-access</span>
           </div>
-
           <div class="item-row">
             <div class="item-top">
               <span class="item-name">pi-smart-compact</span>
               <span class="badge badge-soft">git</span>
               <span class="badge badge-plain">10.7.3</span>
-              <span class="badge badge-plain">钉住 · 不检查更新</span>
+              <span class="badge badge-plain">钉住版本，不检查更新</span>
             </div>
-            <span class="item-path">…\git\github.com\huaxianyan\pi-smart-compact@v2ex-recovery</span>
+            <span class="item-path">…\pi-smart-compact@v2ex-recovery</span>
           </div>
         </div>
       </div>
-
-      <p class="mini-note">「更新全部」在有新版时出现在页头；单个更新在行尾（悬停出现，跟现在其它行内动作一致）。</p>
-    </div>
-  </div>
-</div>
-
-<div class="block">
-  <h2>C · 进度卡片：一张卡片翻面</h2>
-  <p class="why">沿用现有通知卡片：先是转圈 + 任务，结束时原地换成结果，不弹第二个。</p>
-  <div class="stage">
-    <div class="frame">
-      <div class="toasts proto-toasts">
-        <div class="toast is-busy"><span class="toast-spin"></span><span class="toast-text">正在更新 Pi… 1.5.2 → 1.6.0</span></div>
-        <div class="toast"><span class="toast-text">已更新到 1.6.0，新开的对话就用这个版本</span></div>
-        <div class="toast error"><span class="toast-text">更新失败：新版本冒烟没过（PATH 里的 node 太旧），换个 node 再试</span></div>
-      </div>
+      <p class="mini-note">「更新全部」只在有新版时出现。单个「更新」在行尾。</p>
     </div>
 
     <div class="frame">
+      <div class="page-head"><div><h2>技能</h2></div></div>
       <div class="page-card">
-        <h3>失败后可回退</h3>
-        <p class="page-note">升级失败不影响当前版本；已经激活过的版本可以回退一步：把 <code>install/current-version</code> 改回旧版本号。</p>
-        <div class="kv-row">
-          <span class="kv-key">可回退</span>
-          <span class="kv-value"><span>1.5.2</span><button class="ghost-btn small">回退并重启 Pi</button></span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="block">
-  <h2>D · 技能页：只加来源，不加版本</h2>
-  <p class="why">技能没有版本这个概念（18 个都是本地目录）。加来源标签就够了：能看出它是自己写的、还是某个扩展包带进来的。</p>
-  <div class="stage">
-    <div class="frame wide">
-      <div class="page-head">
-        <div><h2>技能</h2></div>
-        <div class="page-head-right"><button class="ghost-btn">刷新</button></div>
-      </div>
-      <div class="page-card">
-        <h3>用户技能</h3>
         <div class="item-list">
           <div class="item-row">
-            <div class="item-top">
-              <span class="item-name">chinese-tech-writing</span>
-              <span class="badge badge-soft">用户</span>
-            </div>
-            <span class="item-path">C:\Users\7inaBranford\.pi\agent\skills\chinese-tech-writing\SKILL.md</span>
+            <div class="item-top"><span class="item-name">chinese-tech-writing</span><span class="badge badge-soft">用户</span></div>
+            <span class="item-path">…\skills\chinese-tech-writing\SKILL.md</span>
           </div>
           <div class="item-row">
-            <div class="item-top">
-              <span class="item-name">btw</span>
-              <span class="badge badge-soft">来自 pi-btw</span>
-            </div>
+            <div class="item-top"><span class="item-name">btw</span><span class="badge badge-soft">来自 pi-btw</span></div>
             <span class="item-path">…\npm\node_modules\pi-btw\skills\btw\SKILL.md</span>
           </div>
         </div>
@@ -200,8 +310,36 @@
   </div>
 </div>
 
+<div class="block">
+  <h2>F · 文案：按人的说法写</h2>
+  <p class="why">上一版原型里「新版本冒烟没过」这种是内部测试的词，用户看不懂。全部换掉：</p>
+  <table class="copy-table">
+    <tr><th>场景</th><th>改成</th></tr>
+    <tr>
+      <td class="bad">更新失败：新版本冒烟没过（PATH 里的 node 太旧）</td>
+      <td>升级没成功：新版本装好了但打不开，这台电脑的 node 版本太旧。已经保持原样，还在 1.5.2。</td>
+    </tr>
+    <tr>
+      <td class="bad">正在更新 Pi…</td>
+      <td>正在下载并安装 Pi 1.6.0…</td>
+    </tr>
+    <tr>
+      <td class="bad">已更新到 1.6.0，新开的对话就用这个版本</td>
+      <td>Pi 已升级到 1.6.0，新开的对话就用这个版本</td>
+    </tr>
+    <tr>
+      <td class="bad">检查失败：连不上 registry.npmjs.org</td>
+      <td>上次检查失败：连不上更新服务器</td>
+    </tr>
+    <tr>
+      <td class="bad">钉住 · 不检查更新</td>
+      <td>钉住版本，不检查更新</td>
+    </tr>
+  </table>
+</div>
+
 <script>
-  // 原型专用：?theme=dark&palette=pine 用来快速看深色与配色。
+  // 原型专用：?theme=dark&palette=pine&fs=xl 用来快速看深色、配色与字号。
   const query = new URLSearchParams(location.search);
   const theme = query.get('theme');
   const palette = query.get('palette');
