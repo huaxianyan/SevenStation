@@ -5383,6 +5383,115 @@ el.fileInput.addEventListener('change', async () => {
   await addImageFiles(files);
 });
 
+/* 路径链接上的右键菜单
+ * 浏览器自带的那套（在新窗口中打开链接 / 将链接另存为 / 复制链接）对文件路径毫无意义，
+ * 链接的 href 还是 #，点了也没用。所以在路径链接上换成我们自己的几项。
+ * -------------------------------------------------------------------- */
+
+let pathMenu = null;
+
+function closePathMenu() {
+  if (!pathMenu) return;
+  pathMenu.remove();
+  pathMenu = null;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('已复制');
+  } catch (error) {
+    toast('复制失败：' + (error && error.message ? error.message : '浏览器不让用剪贴板'), 'error');
+  }
+}
+
+function pathMenuItems(path, invoke) {
+  const items = [];
+
+  items.push({ label: '打开', run: () => revealPath(path) });
+
+  if (invoke) {
+    items.push({
+      label: '打开所在目录',
+      run: () => invoke('reveal_in_explorer', { path }).catch((error) => toast(String(error), 'error')),
+    });
+  }
+
+  items.push({ separator: true });
+  items.push({ label: '复制路径', run: () => copyText(path) });
+
+  if (invoke) {
+    items.push({
+      label: '复制文件',
+      run: () => invoke('copy_file', { path })
+        .then(() => toast('已复制文件，可以直接粘贴'))
+        .catch((error) => toast(String(error), 'error')),
+    });
+  }
+
+  return items;
+}
+
+function showPathMenu(x, y, path) {
+  closePathMenu();
+
+  const invoke = clientInvoke();
+  const node = document.createElement('div');
+  node.className = 'ctx-menu';
+  node.setAttribute('role', 'menu');
+
+  pathMenuItems(path, invoke).forEach((item) => {
+    if (item.separator) {
+      const line = document.createElement('div');
+      line.className = 'ctx-sep';
+      node.appendChild(line);
+      return;
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ctx-item';
+    button.textContent = item.label;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closePathMenu();
+      item.run();
+    });
+    node.appendChild(button);
+  });
+
+  document.body.appendChild(node);
+
+  // 贴着鼠标，但不许出窗口边界。
+  const box = node.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - box.width - 8);
+  const top = Math.min(y, window.innerHeight - box.height - 8);
+  node.style.left = Math.max(8, left) + 'px';
+  node.style.top = Math.max(8, top) + 'px';
+
+  pathMenu = node;
+}
+
+document.addEventListener('contextmenu', (event) => {
+  const link = event.target.closest('.link-path');
+  if (!link || !link.dataset.path) return;
+
+  // 拦下来就不会再弹浏览器那三项了。
+  event.preventDefault();
+  showPathMenu(event.clientX, event.clientY, link.dataset.path);
+});
+
+document.addEventListener('click', () => closePathMenu());
+document.addEventListener('scroll', () => closePathMenu(), true);
+window.addEventListener('resize', () => closePathMenu());
+window.addEventListener('blur', () => closePathMenu());
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && pathMenu) {
+    closePathMenu();
+    event.stopPropagation();
+  }
+}, true);
+
 /* 图片可以直接粘、也可以拖进窗口 */
 document.addEventListener('click', (event) => {
   const pathLink = event.target.closest('.link-path');

@@ -328,6 +328,76 @@ fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 在资源管理器里打开文件「所在的位置」，并把文件选中。
+/// 与 `reveal_path` 的区别：那个是直接打开（文件交给默认程序），这个是打开目录定位到它。
+#[tauri::command]
+fn reveal_in_explorer(path: String) -> Result<(), String> {
+    let target = path.trim();
+    if target.is_empty() {
+        return Err("没有路径".into());
+    }
+
+    let meta = fs::metadata(target).map_err(|_| format!("找不到这个路径：{target}"))?;
+    let mut command = std::process::Command::new("explorer.exe");
+
+    if meta.is_dir() {
+        command.arg(target);
+    } else {
+        // /select 只吃一个参数，路径带空格也不用加引号（Command 自己会处理）。
+        command.arg(format!("/select,{target}"));
+    }
+
+    command.spawn().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// 去掉 canonicalize 加上的 `\\?\` 前缀；UNC 的 `\\?\UNC\` 还原成 `\\`。
+fn plain_path(path: &std::path::Path) -> String {
+    let text = path.to_string_lossy().to_string();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        format!("\\\\{rest}")
+    } else if let Some(rest) = text.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        text
+    }
+}
+
+/// 把文件本体放进剪贴板（资源管理器里对着文件按 Ctrl+C 的效果），可以直接粘到聊天窗口。
+/// 剪贴板属于当前登录会话，所以只能在壳里做：Core 当服务跑在 Session 0，它碰不到用户的剪贴板。
+#[tauri::command]
+fn copy_file(path: String) -> Result<(), String> {
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    use std::os::windows::process::CommandExt;
+
+    let target = path.trim();
+    if target.is_empty() {
+        return Err("没有路径".into());
+    }
+
+    // canonicalize 在 Windows 上会给结果加 `\\?\` 前缀，带这个前缀的路径塞进剪贴板别人读不了，得去掉。
+    let full = plain_path(&fs::canonicalize(target).map_err(|_| format!("找不到这个路径：{target}"))?);
+
+    // 走 PowerShell 的 SetFileDropList：路径从环境变量进去，不拼进命令行，省掉整套引号转义的麻烦。
+    let script = "$f = New-Object System.Collections.Specialized.StringCollection;                   [void]$f.Add($env:SEVENSTATION_COPY_FILE);                   Add-Type -AssemblyName System.Windows.Forms;                   [System.Windows.Forms.Clipboard]::SetFileDropList($f)";
+
+    let status = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script])
+        .env("SEVENSTATION_COPY_FILE", &full)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|error| format!("起不了剪贴板进程：{error}"))?;
+
+    if !status.status.success() {
+        return Err(format!(
+            "复制到剪贴板失败：{}",
+            String::from_utf8_lossy(&status.stderr).trim()
+        ));
+    }
+
+    Ok(())
+}
+
 /// 页面问壳：Seven Station Core 在本机吗。
 #[tauri::command]
 fn center_local(app: tauri::AppHandle) -> bool {
@@ -353,6 +423,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             pick_folder,
             reveal_path,
+            reveal_in_explorer,
+            copy_file,
             open_url,
             center_local,
             client_config_get,
@@ -419,4 +491,32 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("Seven Station 启动失败");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 复制文件这条路只有在真实 Windows 会话里才走得通：这里只验证命令本身不报错，
+    /// 剪贴板里到底有没有那个文件，靠 scripts/ui-tests 之外的实测（或系统「粘贴」）确认。
+    #[test]
+    fn copy_file_puts_a_file_on_the_clipboard() {
+        let path = std::env::temp_dir().join("sevenstation-copy-test.txt");
+        std::fs::write(&path, b"x").expect("写测试文件");
+        let result = copy_file(path.to_string_lossy().to_string());
+        let _ = std::fs::remove_file(&path);
+        assert!(result.is_ok(), "复制失败：{result:?}");
+    }
+
+    #[test]
+    fn copy_file_rejects_missing_path() {
+        let result = copy_file(r"E:\SevenStation-there-is-no-such-file.txt".into());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn reveal_in_explorer_rejects_missing_path() {
+        let result = reveal_in_explorer(r"E:\SevenStation-no-such-dir".into());
+        assert!(result.is_err());
+    }
 }

@@ -878,6 +878,37 @@ button { cursor: pointer; }
   text-decoration: none;
   border-bottom-color: currentColor;
 }
+
+/* 路径链接上的右键菜单。浏览器自带的「在新窗口中打开链接 / 将链接另存为 / 复制链接」
+   对文件路径没有意义（href 是 #），所以在路径链接上换掉。 */
+.ctx-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: calc(158px * var(--fs-ui));
+  padding: 5px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(16, 16, 20, .18), 0 2px 6px rgba(16, 16, 20, .06);
+}
+
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: calc(12.5px * var(--fs-ui));
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctx-item:hover { background: var(--active); color: var(--text); }
+
+.ctx-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 .md blockquote {
   margin: 0 0 10px;
   padding: 2px 0 2px 12px;

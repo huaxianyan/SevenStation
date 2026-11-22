@@ -22,6 +22,40 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-071：路径链接的右键菜单换成自己的（2026-11-22，未发版）
+
+用户反馈：在 Seven Station 里对带完整路径的文件按右键，弹的是浏览器那三项
+「在新窗口中打开链接 / 将链接另存为 / 复制链接」——对文件路径没有任何意义（链接的 href 就是 `#`）。
+
+**做法**：路径链接（`.link-path`）上的 `contextmenu` 一律 `preventDefault()`，换成页内小菜单：
+
+| 菜单项 | 说明 |
+| --- | --- |
+| 打开 | 原有行为（`reveal_path`，文件给默认程序、目录开文件夹） |
+| 打开所在目录 | 新壳命令 `reveal_in_explorer` → `explorer.exe /select,<路径>` |
+| 复制路径 | 路径文本进剪贴板（给只收文本的聊天框） |
+| 复制文件 | 新壳命令 `copy_file` → 文件本体进剪贴板，可直接粘贴 |
+
+网址链接不动（浏览器那套对网址是有用的）。在浏览器里打开 Seven Station 时只显示「打开 / 复制路径」，
+因为后两项要靠壳（剪贴板属于当前登录会话，Core 在 Session 0 里碰不到用户的剪贴板）。
+
+**两个坑（都是这台 Windows 上的）**：
+
+- `fs::canonicalize` 会给路径加 `\\?\` 前缀，带这个前缀进剪贴板别人读不了；落盘前必须用 `plain_path()` 去掉
+  （UNC 的 `\\?\UNC\` 还原成 `\\`）。
+- 子进程用 `Command::status()`（继承 stdio）调 PowerShell 会卡到超时、返回非零；换成 `.output()` 秒回。
+  顺带的好处：失败时能把 stderr 带出来。
+
+**验证**：
+
+- jsdom：`scripts/ui-tests/path-context-menu.test.js` 14 条 —— 右键被拦下、菜单项随环境变化、
+  `copy_file` / `reveal_in_explorer` 的调用参数、点别处与 Esc 收起、网址链接保留默认菜单。
+- Rust：`cargo test` 3 条（复制成功、不存在的路径报错、`reveal_in_explorer` 报错）。
+- 手工：同样的 PowerShell 脚本单独跑一次，剪贴板里能读到文件（`Get-Clipboard -Format FileDropList`）。
+
+出包：`dist/SevenStationCore-win-x64-0.4.1.msi`（`d5e05144548db97b…`）、
+`dist/SevenStation-win-x64-0.4.1.msi`（`8ae6009b6bf89d1b…`）——这次两端都动了，客户端也要重装。
+
 ## STATUS-070：给 Pi 注入「Windows 常见坑」（2026-11-22，未发版）
 
 用户要求：把 Windows 上最常见、最关键的盲区提前注入给 Pi，别总结太多，要最普遍的那种（比如路径拼接）。
