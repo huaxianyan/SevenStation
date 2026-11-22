@@ -75,4 +75,34 @@ window.__scrollTop(0);
 window.__rerender();
 ok(window.__scrollTop() === 0, '没贴底就保持原位（scrollTop=' + window.__scrollTop() + '）');
 
+
+// 一段里并行两个工具，先回来的不是最后一行：那一行也要跟着变（不要一直转圈）
+const groupWrap = document.querySelectorAll('.work')[1];
+const rowsBefore = [...groupWrap.querySelectorAll('.st-row')].map((node) => node.textContent.trim());
+ok(rowsBefore.length >= 2, '该段有多行可测：' + rowsBefore.length);
+
+const early = session.items[session.items.length - 1];
+early.blocks.push(
+  { type: 'toolCall', id: 't7', name: 'bash', args: {}, argsText: '', output: '', running: true, done: false, isError: false, durationMs: null },
+  { type: 'toolCall', id: 't8', name: 'read', args: {}, argsText: '', output: '', running: true, done: false, isError: false, durationMs: null },
+);
+session.toolIndex.set('t7', { item: early, block: early.blocks[early.blocks.length - 2] });
+session.toolIndex.set('t8', { item: early, block: early.blocks[early.blocks.length - 1] });
+window.__patch();
+
+// t7 先完成，但它不是最后一行
+const t7block = early.blocks[early.blocks.length - 2];
+t7block.done = true;
+t7block.running = false;
+t7block.durationMs = 5;
+window.__patch();
+
+// t7 与更早的 t3 同类，合并成一行；这一行不是最后一行，也要跟着从「进行中」变成完成
+const merged = [...document.querySelectorAll('.work')[1].querySelectorAll('.st-item')]
+  .find((node) => node.dataset.step === 't3');
+ok(Boolean(merged), '找到合并出来的那一行（t3 + t7）');
+ok(merged && merged.textContent.includes('×2'), '两行合并成 ×2');
+ok(merged && merged.querySelector('.st-state .spin') === null, '不是最后一行的合并行也刷新成了完成（不再转圈）');
+ok(merged && merged.textContent.includes('✓'), '完成记号出现了');
+
 done();

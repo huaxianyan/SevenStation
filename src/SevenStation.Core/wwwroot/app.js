@@ -2193,13 +2193,15 @@ function updateLiveTurn(node, turn) {
     return true;
   }
 
-  const target = last.entries[last.entries.length - 1];
-  const row = body.lastElementChild;
-  const targetId = String(target.block?.id || '');
-  if ((row.dataset.lastStep || row.dataset.step) !== targetId) return false;
-
-  row.rowData = rows[rows.length - 1];
-  updateLiveRow(row, target, rows[rows.length - 1]);
+  // 每一行都同步一遍，不是只刷新最后一行。
+  // 一段里并行发几个工具时，先回来的往往不是最后那一行；只更新最后一行会让它一直转圈，
+  // 直到下一次整轮重画才纠正（用户看到的就是「明明跑完了还在进行中」）。
+  rows.forEach((row, index) => {
+    const node = body.children[index];
+    if (!node) return;
+    node.rowData = row;
+    updateLiveRow(node, row.entries[row.entries.length - 1], row);
+  });
 
   if (typeof wrap.follow === 'function') wrap.follow();
   updateWorkHead(wrap, last.entries);
