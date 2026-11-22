@@ -670,14 +670,21 @@ pub fn is_elevated() -> bool {
 /// 把执行代理挂上：任务不在就建（要管理员，Control 现在本来就要求管理员），在就叫它跑一次。
 /// 任务建一次就一直在，之后每次启动只是顺手 `/run`。
 pub fn ensure_runner() -> Result<String, String> {
+    let exe = core_exe_path()?;
+
+    // 两份都挂上：Run 键负责登录那一瞬间（比计划任务快），任务负责按需启动与失败重试。
+    // 都起了也没事，第二个占不到管道会自己退出。
+    let autostart = crate::runner::ensure_autostart(&exe);
+
     if crate::runner::registered() {
-        return match crate::runner::run_now() {
-            Ok(()) => Ok("执行代理已在跑".into()),
-            Err(message) => Ok(format!("登录任务已在，但没拉起来：{message}")),
+        let started = crate::runner::run_now();
+        return match (autostart, started) {
+            (Err(message), _) => Err(message),
+            (_, Err(message)) => Ok(format!("登录任务已在，但没拉起来：{message}")),
+            _ => Ok("执行代理已在跑".into()),
         };
     }
 
-    let exe = core_exe_path()?;
     crate::runner::register(&exe)
 }
 

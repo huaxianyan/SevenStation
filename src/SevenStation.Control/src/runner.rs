@@ -10,6 +10,27 @@
 /// 计划任务名。核心那边按同名字查询状态，两边要一致。
 pub const TASK: &str = "SevenStation Core Runner";
 
+/// Run 键里那一项的名字。
+pub const VALUE: &str = "SevenStation Core Runner";
+
+const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// 再写一份 Run 键：登录时它比计划任务快得多（任务要给调度器排期，实测差十秒）。
+/// 两个都起也没关系——第二个占不到管道会自己退出。
+pub fn ensure_autostart(exe: &std::path::Path) -> Result<(), String> {
+    let command = format!("\"{}\" --runner", exe.display());
+    let (code, text) = run(
+        "reg.exe",
+        &["add", RUN_KEY, "/v", VALUE, "/t", "REG_SZ", "/d", &command, "/f"],
+    );
+
+    if code != 0 {
+        return Err(format!("写不了开机启动项：{}", text.trim()));
+    }
+
+    Ok(())
+}
+
 /// 登录任务在不在。查询不需要管理员。
 pub fn registered() -> bool {
     run("schtasks.exe", &["/query", "/tn", TASK]).0 == 0

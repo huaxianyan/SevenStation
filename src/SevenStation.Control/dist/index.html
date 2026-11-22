@@ -930,6 +930,21 @@
 
   send('ready');
   // ── 执行代理：Pi 必须在登录的桌面会话里跑，这里显示它连没连上 ───────────
+  // 计划任务从 /run 到真起来要几秒，这段时间显示「正在启动」而不是「没连上」。
+  let runnerConnected = false;
+  // 页面刚起来时 Control 已经叫过代理了，先按「正在启动」显示，别一上来就报没连上。
+  let runnerAskedAt = Date.now();
+  let runnerTimer = null;
+
+  function scheduleRunner() {
+    // 没连上时两秒一问，连上之后放慢。
+    clearTimeout(runnerTimer);
+    runnerTimer = setTimeout(async () => {
+      await loadRunner().catch(() => {});
+      scheduleRunner();
+    }, runnerConnected ? 5000 : 2000);
+  }
+
   async function loadRunner() {
     let data;
     try {
@@ -940,19 +955,28 @@
       return;
     }
 
+    runnerConnected = Boolean(data.connected);
+
     if (data.connected) {
       el('runnerSummary').textContent = '已连上';
       el('runnerHint').hidden = true;
       return;
     }
 
-    el('runnerSummary').textContent = '没连上';
+    // 刚叫过它起来（打开 Control 或点重启），给它几十秒，别急着报「没连上」。
+    if (runnerAskedAt && Date.now() - runnerAskedAt < 45000) {
+      el('runnerSummary').textContent = '正在启动…';
+    } else {
+      el('runnerSummary').textContent = '没连上';
+    }
+
     el('runnerHint').textContent =
       'Pi 只能在登录后的桌面会话里运行。锁屏不影响；注销或停在登录界面时用不了。';
     el('runnerHint').hidden = false;
   }
 
   el('restartRunner').addEventListener('click', async () => {
+    runnerAskedAt = Date.now();
     el('runnerSummary').textContent = '正在重启…';
     try {
       toast(await invoke('runner_restart'));
@@ -964,7 +988,7 @@
 
   loadDevices().catch(() => {});
   loadRunner().catch(() => {});
-  setInterval(() => loadRunner().catch(() => {}), 5000);
+  scheduleRunner();
 </script>
 </body>
 </html>
