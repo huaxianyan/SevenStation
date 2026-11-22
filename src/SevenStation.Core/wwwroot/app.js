@@ -3879,6 +3879,52 @@ function renderAppearanceCard() {
   block.appendChild(group('主题', seg));
   block.appendChild(group('配色', paletteRow));
   block.appendChild(group('用户气泡', bubbleRow));
+
+  card.appendChild(block);
+  return card;
+}
+
+/**
+ * 字体大小：按区域各选一档。
+ * 正文读起来累就放大，过程区想多塞点就缩小，两边互不牵连；
+ * 只存这台设备的 localStorage，不进 Seven Station Core 的设置。
+ */
+function renderFontCard() {
+  const card = makePageCard('字体大小', '只影响这台设备上的显示，不写进 Seven Station Core 的设置。');
+
+  const block = document.createElement('div');
+  block.className = 'appearance-block';
+
+  for (const region of FONT_REGIONS) {
+    const row = document.createElement('div');
+    row.className = 'seg';
+
+    for (const step of FONT_STEPS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = step.name;
+      button.classList.toggle('is-on', appearance.fonts[region.id] === step.id);
+      button.addEventListener('click', () => {
+        setAppearance({ fonts: { [region.id]: step.id } });
+        // 字号一变，换行、行高、输入框高度都要重算，重画这一张卡片最省事。
+        card.replaceWith(renderFontCard());
+        if (typeof autoGrow === 'function') autoGrow();
+      });
+      row.appendChild(button);
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'appearance-group';
+    wrap.title = region.hint || '';
+
+    const caption = document.createElement('span');
+    caption.className = 'appearance-label';
+    caption.textContent = region.name;
+
+    wrap.append(caption, row);
+    block.appendChild(wrap);
+  }
+
   card.appendChild(block);
   return card;
 }
@@ -4051,6 +4097,7 @@ function renderTokenCard() {
 function renderSettingsPage() {
   el.pageInner.appendChild(makePageHead('设置'));
   el.pageInner.appendChild(renderAppearanceCard());
+  el.pageInner.appendChild(renderFontCard());
 
   const connection = makePageCard('连接');
   const local = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
