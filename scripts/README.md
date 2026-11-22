@@ -53,5 +53,5 @@ node scripts/ui-smoke.mjs --cwd work\smoke\ui-ws
 给 `.msi` 的右键菜单加两项（只写 HKCU，不要管理员）：**复制文件**（把文件本体放进剪贴板，
 可以直接粘到聊天窗口或别的目录）和**打开文件所在目录**。装完不用重启资源管理器。
 
-复制用的小脚本在 `%LOCALAPPDATA%\SevenStation	ools\copy-file.ps1`，由这个脚本一起写进去；
+复制用的小脚本在 `%LOCALAPPDATA%\SevenStation\tools\copy-file.ps1`，由这个脚本一起写进去；
 撤掉就删 `HKCU\Software\Classes\Msi.Package`（这个键默认不存在）。
