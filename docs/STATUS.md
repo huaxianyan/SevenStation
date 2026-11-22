@@ -22,6 +22,24 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-073：隔离实跑 pi update（2026-11-22，未动产品代码）
+
+在 `work/smoke/pi-home`（真实 `~/.pi/agent` 的副本，不含 sessions）上跑 `pi update --self`，标准输入接 `/dev/null`：
+
+- 系统 node **v20** 在 PATH 上 → 失败（staging 冒烟报 `enableCompileCache` 不存在，那是 Node ≥ 22.8 的 API）；
+- 把 pi-node **v22.23.3** 放 PATH 最前 → 34 秒成功，`1.5.2 → 1.6.0`，全程无提问。
+
+同时确认：`settings.json` / `models.json` md5 不变（1.6.0 唯一的迁移是 legacy apiKeys → `auth.json`，
+本机已有 `auth.json` 故跳过）；失败不留残骸（`current-version` 不变、staging 已清）；旧版本只留一步
+（升级后 1.5.1 被删）；1.6.0 的 `--append-system-prompt` / `--mode rpc` / `--session` 都在，
+`get_state` 握手 `success: true`。
+
+**最重要的一条**：升级过程用的是 **PATH 里的 node 与 npm**（`npm ci` 与 `.bin/pi.cmd`），
+不是我们平时起 Pi 用的那个绝对路径 node。升级时必须把 pi-node 目录塞进 PATH 最前面。
+
+细节与命令见 `docs/research/updates-2026-11.md` 的四点六节；日志留在 `work/smoke/exp-ok.log` 与
+`work/smoke/exp-node20-fail.log`（已忽略，不进库）。
+
 ## STATUS-072：技能、扩展、Pi 自身的版本与升级（调研，2026-11-22）
 
 用户提出：技能、扩展、Pi 本身的升级现在界面里看不到，先调研出方案。方案写在

@@ -151,6 +151,33 @@ Pi              1.5.2 → 1.6.0（有新版）      [检查更新] [升级 Pi]
 `work/smoke/pi-home`，用 `PI_MANAGED_INSTALL_ROOT` 指过去跑 `pi update --self`，
 观察是否有提问、以及对 `settings.json` / `models.json` 的改动。约 150 MB 复制 + 一次下载。
 
+## 四点六、隔离实跑的结果（2026-11-22，已验证）
+
+把 `~/.pi/agent`（不含 `sessions`/`compact-backups`/`web-search-cache`）复制到 `work/smoke/pi-home`，
+用复制出来的 `bin/pi-launcher.js` 跑 `pi update --self`，标准输入接 `/dev/null`（模拟没有终端）。
+两种环境各跑一次：
+
+| 跑法 | 结果 |
+| --- | --- |
+| PATH 里是系统 node **v20.12.0** | **失败**：staging 阶段冒烟报 `node:module does not provide an export named 'enableCompileCache'`（那是 Node ≥22.8 才有的 API） |
+| PATH 里先是 pi-node 的 **v22.23.3** | **成功**：34 秒，`1.5.2 → 1.6.0` |
+
+结论（都是实测，不是推测）：
+
+1. **全程没有提问**，无终端也不会卡住 ✓；退出码 0/1 都很干脆。
+2. **没有动用户配置**：`settings.json`、`models.json` 的 md5 前后一致。1.6.0 里唯一的迁移是
+   「把 legacy `oauth.json` 与 `settings.json` 里的 apiKeys 搬进 `auth.json`」，本机 `auth.json` 已存在 → 跳过。
+   **但**：别的机器如果 `auth.json` 不存在、settings 里又有 apiKeys，那次迁移会重写 `settings.json`。
+3. **失败是安全的**：第一次失败后 `current-version` 仍是 1.5.2，`releases/` 没被破坏，`staging/` 也清掉了。
+4. **升级依赖 PATH 里的 node 与 npm**：`npm ci` 和冒烟用的 `node_modules/.bin/pi.cmd` 都是从 PATH 找的，
+   不是 `process.execPath`。**所以升级时必须把 pi-node 所在目录放到 PATH 最前面**，否则在系统 node 20 上直接失败。
+   这一条是本轮最重要的发现：我们起 Pi 用的是绝对路径的 node，容易以为升级也一样，其实不然。
+5. **旧版本确实只留一步**：升级后 `releases/` 只剩 `1.5.2`（旧）与 `1.6.0`（新），1.5.1 已被删。
+6. **协议兼容**：1.6.0 仍然支持 `--append-system-prompt` / `--mode rpc` / `--session`；
+   起 `--mode rpc` 发 `{"id":1,"type":"get_state"}` 拿到 `success: true` 与正常的 `data`（模型、思考等级都在）。
+
+剩下没解决的一条：git 扩展的「有新版」判定（脏工作区、钉 tag 还是分支）还没试。
+
 ## 五、实施顺序与工作量
 
 1. **只读可见**（Core 读版本 + 缓存 + 前端徽标）：约 1 天。做完就能看见 1.5.2 → 1.6.0，风险最低。
