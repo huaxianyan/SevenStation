@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
@@ -18,8 +19,16 @@ internal static class RunnerHost
 {
     private const int PipeBuffer = 64 * 1024;
 
+    [DllImport("kernel32.dll")]
+    private static extern bool FreeConsole();
+
     public static int Run()
     {
+        // 代理是登录会话里的控制台程序：不主动脱开的话，计划任务会弹一个 cmd 窗口，
+        // 用户一关窗口进程就收到 CTRL_CLOSE，被杀掉（任务结果是 0xC000013A）。
+        // 三根管子都是管道，不靠控制台，所以直接放开。
+        FreeConsole();
+
         try
         {
             Log.Initialize(Path.Combine(ProductPaths.ClientHome, "logs"), "runner.log");

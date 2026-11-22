@@ -22,6 +22,34 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-062：代理被 cmd 窗口带走了 + 状态一直显示没连上（2026-11-22，未发版）
+
+装完 STATUS-061 的包，用户看到：重启和打开 Control 时都会弹一个 cmd 窗口，而且界面一直「没连上」。
+
+**两个真因**：
+
+1. **代理是被那个窗口弄死的**。`SevenStation.Core.exe` 发布出来是**控制台**子系统，计划任务在登录会话里
+   拉它，自然弹一个 cmd 窗口；用户一关窗口，进程收到 CTRL_CLOSE，任务结果就是 `0xC000013A`
+   （`schtasks /query /v` 里能看到，正好和 runner.log 里十秒一次的重启对上）。
+2. **状态接口在骗人**。核心平时是懒连的（真要用 Pi 才连代理），`/api/runner` 只回「现在有没有连接」，
+   所以没发过对话时永远是 `connected: false`，界面就一直「没连上」。
+
+**修法**：
+
+- 发布改成 **GUI 子系统**（`<OutputType>WinExe</OutputType>`）：不再有控制台窗口，也就没有 CTRL_CLOSE。
+  服务与 runner 都不需要控制台，日志本来就写文件；用 `dotnet dll` 跑时输出照旧（那是 dotnet 宿主自己的控制台）。
+- runner 里再补一刀 `FreeConsole()` 兜底。
+- 任务 XML 补 `RestartOnFailure`（1 分钟后重试 3 次），真死了不用等下次登录。
+- `/api/runner` 改成先主动探一次连接（`RunnerClient.Probe()`），状态页才反映真实情况。
+
+**验证**：
+
+- 发布出来的 `SevenStation.Core.exe` PE 子系统 = 2（GUI）。
+- 沙箱里没发过任何对话，直接查 `/api/runner` 就回 `connected: true`。
+- 沙箱链路照旧：`✓ 代理链路通了，Pi 回了：收到`；`cargo test --release` 9 个全过。
+
+出包：`dist/SevenStationCore-win-x64-0.4.1.msi`（`83ff3ec66750c298…`）。
+
 ## STATUS-061：Control 与 Core 启动就要管理员（2026-11-22，未发版）
 
 用户定：这两个东西**打开就要 UAC，不给权限就不启动**——反正开关、防火墙、服务状态全要管理员，

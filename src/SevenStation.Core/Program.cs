@@ -149,7 +149,7 @@ app.MapGet("/api/runner", (HttpContext context) =>
     Admin(context)
         ? Results.Json(new
         {
-            connected = SevenStation.Core.Rpc.RunnerClient.IsConnected,
+            connected = SevenStation.Core.Rpc.RunnerClient.Probe(),
             pipe = SevenStation.Core.Rpc.RunnerClient.PipeName,
             log = System.IO.Path.Combine(SevenStation.Shared.ProductPaths.ClientHome, "logs", "runner.log"),
         })

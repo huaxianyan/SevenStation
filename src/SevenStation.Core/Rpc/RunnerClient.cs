@@ -34,6 +34,12 @@ internal sealed class RunnerClient
         }
     }
 
+    /// <summary>
+    /// 连着就回 true，没连就试一次再回。核心平时是懒连的（真要用 Pi 才连），
+    /// 但状态页得能看出代理在不在，所以这里主动探一下。
+    /// </summary>
+    public static bool Probe() => IsConnected || TryConnect() is not null;
+
     private readonly NamedPipeClientStream _pipe;
     private readonly StreamReader _reader;
     private readonly StreamWriter _writer;
