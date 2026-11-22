@@ -1027,109 +1027,55 @@ button { cursor: pointer; }
 
 .st-code.err-text { color: var(--danger); }
 
-/* ── 步骤详情弹窗：点一行看这条的全部内容，主界面排版不动 ── */
-.sm-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: color-mix(in oklab, #101014 30%, transparent);
-}
+/* ── 步骤详情：点一行，它下面直接展开这条的全部内容 ──
+   放在过程区自己的滚动框里，长输出在里面滚，不会把整轮撑变形。 */
+.st-item.is-open { background: color-mix(in oklab, var(--panel) 60%, transparent); border-radius: 8px; }
 
-.sm-dlg {
-  display: flex;
-  flex-direction: column;
-  width: min(640px, 100%);
-  max-height: 100%;
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--card);
-  box-shadow: 0 24px 60px rgba(16, 16, 20, .28), inset 0 0 0 1px var(--border);
-}
-
-.sm-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 14px 0 20px;
-}
-
-.sm-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.sm-title h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
-.sm-clock { font-size: 11.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-
-.sm-close {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 7px;
-  background: none;
-  color: var(--text-mute);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.sm-close:hover { background: var(--active); color: var(--text); }
-
-.sm-meta {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 20px 0;
-  font-size: 11.5px;
-  color: var(--text-mute);
-}
-
-.sm-meta .is-ok { color: color-mix(in oklab, var(--green) 68%, var(--text-mute)); }
-.sm-meta .is-error { color: var(--danger); }
-.sm-meta .is-aborted { color: var(--text-faint); }
-
-.sm-cwd {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.sm-body {
-  flex: 1;
-  min-height: 0;
+.st-more {
+  margin: 2px 0 6px 26px;
+  padding: 10px 12px 12px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--border);
+  max-height: min(40vh, 300px);
   overflow-y: auto;
-  padding: 14px 20px 4px;
+  overscroll-behavior: contain;
 }
+
+.st-more-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.st-more-meta .is-ok { color: color-mix(in oklab, var(--green) 68%, var(--text-mute)); }
+.st-more-meta .is-error { color: var(--danger); }
+.st-more-meta .is-aborted { color: var(--text-faint); }
+.st-more-cwd { font-family: var(--mono); font-size: 11px; }
 
 /* 合并起来的那一组：每条之间用一条细线加一行时间隔开。 */
-.sm-tag {
-  margin: 14px 0 5px;
-  padding-top: 10px;
+.st-more-tag {
+  margin: 12px 0 5px;
+  padding-top: 9px;
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
-.sm-tag:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-
-.sm-block + .sm-block { margin-top: 12px; }
+.st-more-tag:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 
 /* 思考是散文，用正文字体、按宽度换行；不复用 .st-code 的等宽。 */
-.sm-code {
+.st-more-code {
   margin: 0;
-  max-height: 320px;
-  overflow: auto;
   padding: 9px 11px;
   border-radius: 8px;
-  background: var(--panel);
+  background: var(--card);
   box-shadow: inset 0 0 0 1px var(--border);
   font-family: var(--font);
   font-size: 12.5px;
@@ -1139,43 +1085,20 @@ button { cursor: pointer; }
   word-break: break-word;
 }
 
-/* 弹窗里的代码块自己滚，别把弹窗撑到天上。 */
-.sm-body .st-code {
-  max-height: 260px;
+.st-more-block + .st-more-block { margin-top: 12px; }
+
+.st-more .st-code {
+  max-height: 240px;
   overflow: auto;
   padding: 9px 11px;
   border-radius: 8px;
-  background: var(--panel);
+  background: var(--card);
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.sm-body .st-code.is-removed,
-.sm-body .st-code.is-added { box-shadow: none; }
+.st-more .st-code.is-removed,
+.st-more .st-code.is-added { box-shadow: none; }
 
-.sm-footer,
-.sm-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 20px 16px;
-}
-
-.sm-foot .spacer { flex: 1; }
-
-.sm-btn {
-  border: 0;
-  border-radius: 7px;
-  padding: 6px 12px;
-  background: var(--card);
-  color: var(--text-dim);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.sm-btn:hover { box-shadow: inset 0 0 0 1px var(--text-faint); }
-.sm-btn:disabled { color: var(--text-faint); box-shadow: inset 0 0 0 1px var(--border); cursor: default; }
 
 /* ---------------------------------------------------------------- *
  * 空状态

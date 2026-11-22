@@ -170,6 +170,8 @@ const app = {
   filter: '',
   currentKey: null,
   byKey: new Map(),
+  // 每个会话各自的草稿：切会话换一份，别把 A 里没发出去的话带到 B。
+  drafts: new Map(),
   activeCwd: '',
   lastCwd: '',
   pendingCwd: '',
@@ -1112,27 +1114,32 @@ function turnNode(turn, session, isLast) {
     node.appendChild(userNode(item));
   }
 
-  const { ask, work, texts, images, turnMs } = turnParts(turn);
+  const { ask, segments, images, turnMs } = turnParts(turn);
 
   const streaming = Boolean(session.streaming) && isLast;
-  const answered = texts.length > 0;
-  const hasWork = work.length > 0;
+  const base = turnKeyOf(turn);
 
   const assistant = document.createElement('div');
   assistant.className = 'msg assistant';
 
-  if (hasWork) {
-    assistant.appendChild(
-      workGroup(work, answered && !streaming, turnMs, streaming && ask ? ask.ts : 0, session, turnKeyOf(turn)),
-    );
-  }
+  // 按出现顺序画：一段工作，一段正文，又一段工作……
+  // 每一段有自己的折叠状态和滚动位置，键里带序号（同一轮可能有好几段工作）。
+  segments.forEach((segment, index) => {
+    const live = streaming && index === segments.length - 1;
 
-  for (const text of texts) {
+    if (segment.kind === 'work') {
+      const since = live ? stampOf(segment.entries[0]) || (ask ? ask.ts : 0) : 0;
+      const wrap = workGroup(segment.entries, !live, turnMs, since, session, base + '#' + index);
+      wrap.dataset.seg = String(index);
+      assistant.appendChild(wrap);
+      return;
+    }
+
     const md = document.createElement('div');
     md.className = 'md';
-    md.innerHTML = renderMarkdown(text);
+    md.innerHTML = renderMarkdown(segment.text);
     assistant.appendChild(md);
-  }
+  });
 
   for (const block of images) {
     const img = document.createElement('img');
@@ -1149,21 +1156,46 @@ function turnNode(turn, session, isLast) {
   return node;
 }
 
-/** 把一轮拆成可画的几部分：用户提问、工作步骤、正文、图片、耗时。 */
+/**
+ * 把一轮拆成按顺序排的几段：工作 → 正文 → 工作 → 正文……，外加用户提问、图片、耗时。
+ *
+ * 分段规则是这套界面的关键：**一旦开口回答，前面那段工作就算完结**。
+ * 回答之后如果又调工具，那是新的一段工作，排在正文后面，
+ * 不能续到回答前面那段上——不然用户分不清哪些步骤在回答前、哪些在回答后（回答多次更明显）。
+ */
 function turnParts(turn) {
+  const segments = [];
   const work = [];
   const texts = [];
   const images = [];
+
+  let group = null;
 
   for (const item of turn.items) {
     if (item.kind === 'user') continue;
     for (const block of item.blocks || []) {
       if (block.type === 'text' && block.text) {
+        segments.push({ kind: 'text', text: block.text });
         texts.push(block.text);
+        group = null;
       } else if (block.type === 'thinking' && block.text) {
-        work.push({ kind: 'thinking', block, item });
+        if (!group) {
+          group = { kind: 'work', entries: [] };
+          segments.push(group);
+        }
+
+        const entry = { kind: 'thinking', block, item };
+        group.entries.push(entry);
+        work.push(entry);
       } else if (block.type === 'toolCall') {
-        work.push({ kind: 'tool', block, item });
+        if (!group) {
+          group = { kind: 'work', entries: [] };
+          segments.push(group);
+        }
+
+        const entry = { kind: 'tool', block, item };
+        group.entries.push(entry);
+        work.push(entry);
       } else if (block.type === 'image') {
         images.push(block);
       }
@@ -1182,7 +1214,14 @@ function turnParts(turn) {
     if (end > ask.ts) turnMs = end - ask.ts;
   }
 
-  return { ask, work, texts, images, turnMs };
+  return { ask, segments, work, texts, images, turnMs };
+}
+
+/** 这一步是什么时候发生的（毫秒），没有就返回 0。 */
+function stampOf(entry) {
+  const raw = entry?.block?.ts ?? entry?.block?.startedAt ?? entry?.item?.ts ?? entry?.ts;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 /** 「工作 9 步 · 47 秒」——时间是一轮的实际耗时，不是各步相加。 */
@@ -1368,13 +1407,17 @@ function workGroup(work, collapsed, turnMs, since, session, turnKey) {
 
   const ui = session ? uiOf(session) : null;
 
-  // 还在跑的按开始到现在算，每秒跟着刷新；跑完的用这一轮的实际耗时。
+  // 还在跑的按开始到现在算，每秒跟着刷新；跑完的算这一段自己的跨度。
+  // 别拿整轮耗时：一轮里可能有好几段工作，拿整轮的数会看着像这段干了那么久。
   const live = since > 0;
+  const first = stampOf(work[0]);
+  const tail = stampOf(work[work.length - 1]);
+  const span = first && tail && tail >= first ? tail - first : 0;
   const totalMs = live
     ? Date.now() - since
-    : turnMs > 0
-      ? turnMs
-      : work.reduce((sum, entry) => sum + (entry.block.durationMs || 0), 0);
+    : span > 0
+      ? span
+      : work.reduce((sum, entry) => sum + (entry.block.durationMs || 0), 0) || turnMs || 0;
 
   const head = document.createElement('button');
   head.className = 'work-head';
@@ -1471,8 +1514,8 @@ function workGroup(work, collapsed, turnMs, since, session, turnKey) {
 }
 
 /**
- * 一行：图标 + 种类 + 摘要 + 状态记号。点一下弹窗看完整内容。
- * 不在原地展开——就地展开会把下面的内容顶走，长输出还会把整轮撑变形。
+ * 一行：图标 + 种类 + 摘要 + 状态记号。点一下在它下面展开这一步的完整内容。
+ * 详情待在过程区自己的滚动框里，长输出在里面滚，不会把整轮撑变形。
  */
 function workRowNode(rows, index) {
   const row = rows[index];
@@ -1501,7 +1544,7 @@ function workRowNode(rows, index) {
   node.tabIndex = 0;
   node.setAttribute('role', 'button');
   node.title = '点开看这一步的完整内容';
-  node.addEventListener('click', () => openStepModal(rows, index));
+  node.addEventListener('click', () => toggleStepDetail(item, rows, index));
   node.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -1523,7 +1566,11 @@ function workRowNode(rows, index) {
 
   node.appendChild(stepStateNode(state));
 
-  item.appendChild(node);
+  const detail = document.createElement('div');
+  detail.className = 'st-more';
+  detail.hidden = true;
+
+  item.append(node, detail);
   return item;
 }
 
@@ -1540,14 +1587,16 @@ function openPathInPanel(targetPath) {
   send({ type: 'read_file', key: session.key, path: targetPath });
 }
 
-/* ────────────────────────── 步骤详情弹窗 ────────────────────────── *
- * 一条（或合并起来的一组）步骤的全部内容：命令、输出、改动、耗时。
- * 主界面排版一动不动，长输出在自己的框里滚。
+/* ────────────────────────── 步骤详情（就地展开） ────────────────────────── *
+ * 点一行，它下面直接展开这一步的全部内容：命令、输出、改动、耗时。
+ * 不用独立窗口——那是另一个「页面」，压在对话上、还要自己记住翻到哪；
+ * 就地展开也不会把整轮撑变形，因为它待在过程区自己的滚动框里，长输出在里面滚。
+ * 同一时间只开一条。
  */
 
-let stepModal = null;
+let openStep = null;
 
-/** 状态说人话：弹窗里可以写字，不像行尾只有一个记号。 */
+/** 状态说人话：详情里可以写字，不像行尾只有一个记号。 */
 function stepStateText(entry) {
   if (stepRunning(entry)) return { text: '正在跑', cls: '' };
   if (entry.block?.isError) return { text: '出错', cls: 'is-error' };
@@ -1557,8 +1606,7 @@ function stepStateText(entry) {
 
 /** 这一步是什么时候发生的，没有时间戳就留空。 */
 function clockOf(entry) {
-  const raw = entry?.block?.ts ?? entry?.block?.startedAt ?? entry?.item?.ts ?? entry?.ts;
-  const value = Number(raw);
+  const value = stampOf(entry);
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -1567,55 +1615,32 @@ function clockOf(entry) {
     String(date.getSeconds()).padStart(2, '0');
 }
 
-function closeStepModal() {
-  if (!stepModal) return;
-  document.removeEventListener('keydown', stepModal.onKey);
-  stepModal.scrim.remove();
-  stepModal = null;
+function closeStepDetail() {
+  if (!openStep) return;
+  openStep.detail.hidden = true;
+  openStep.item.classList.remove('is-open');
+  openStep = null;
 }
 
-function openStepModal(rows, index) {
-  closeStepModal();
+function toggleStepDetail(item, rows, index) {
+  const detail = item.querySelector('.st-more');
 
-  const scrim = document.createElement('div');
-  scrim.className = 'sm-scrim';
-  scrim.addEventListener('click', (event) => {
-    if (event.target === scrim) closeStepModal();
-  });
-  document.body.appendChild(scrim);
-
-  const onKey = (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      closeStepModal();
-      return;
-    }
-    if (event.key === 'ArrowRight') moveStepModal(1);
-    if (event.key === 'ArrowLeft') moveStepModal(-1);
-  };
-
-  stepModal = { rows, index, scrim, onKey };
-  document.addEventListener('keydown', onKey);
-  renderStepModal();
-}
-
-function moveStepModal(step) {
-  if (!stepModal) return;
-  const next = stepModal.index + step;
-  if (next < 0 || next >= stepModal.rows.length) return;
-  stepModal.index = next;
-  renderStepModal();
-}
-
-function renderStepModal() {
-  if (!stepModal) return;
-
-  const { rows, index, scrim } = stepModal;
-  const row = rows[index];
-  if (!row) {
-    closeStepModal();
+  if (openStep && openStep.detail === detail) {
+    closeStepDetail();
     return;
   }
+
+  closeStepDetail();
+  renderStepDetail(detail, rows, index);
+  detail.hidden = false;
+  item.classList.add('is-open');
+  openStep = { item, detail, rows, index };
+}
+
+/** 详情里那张卡片：状态、耗时、目录，然后是这一组的全部内容。 */
+function renderStepDetail(detail, rows, index) {
+  const row = rows[index];
+  if (!row) return;
 
   const first = row.entries[0];
   const meta = stepMeta(first);
@@ -1624,34 +1649,16 @@ function renderStepModal() {
   const duration = row.entries.reduce((sum, entry) => sum + (entry.block.durationMs || 0), 0);
   const cwd = current()?.cwd || '';
 
-  // 正在跑的那条会不停刷新，别把弹窗里的滚动位置刷没了。
-  const keep = scrim.querySelector('.sm-body') ? scrim.querySelector('.sm-body').scrollTop : 0;
+  // 正在跑的那条会不停刷新，别把里面的滚动位置刷没了。
+  const keep = (() => {
+    const body = detail.querySelector('.st-more-body');
+    return body ? body.scrollTop : 0;
+  })();
 
-  scrim.innerHTML = '';
-  const dlg = document.createElement('div');
-  dlg.className = 'sm-dlg';
-
-  const head = document.createElement('div');
-  head.className = 'sm-head';
-  const title = document.createElement('div');
-  title.className = 'sm-title';
-  const heading = document.createElement('h3');
-  heading.textContent = meta.label + (row.entries.length > 1 ? ' ×' + row.entries.length : '');
-  const clock = document.createElement('span');
-  clock.className = 'sm-clock';
-  clock.textContent = clockOf(first);
-  title.append(heading, clock);
-
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'sm-close';
-  close.textContent = '×';
-  close.title = '关闭（Esc）';
-  close.addEventListener('click', closeStepModal);
-  head.append(title, close);
+  detail.innerHTML = '';
 
   const line = document.createElement('div');
-  line.className = 'sm-meta';
+  line.className = 'st-more-meta';
   const statusNode = document.createElement('span');
   statusNode.className = status.cls;
   statusNode.textContent = status.text;
@@ -1661,19 +1668,25 @@ function renderStepModal() {
     used.textContent = '用时 ' + formatDuration(duration);
     line.append('·', used);
   }
+  const clock = clockOf(first);
+  if (clock) {
+    const when = document.createElement('span');
+    when.textContent = clock;
+    line.append('·', when);
+  }
   if (cwd) {
     const where = document.createElement('span');
-    where.className = 'sm-cwd';
+    where.className = 'st-more-cwd';
     where.textContent = cwd;
     line.append('·', where);
   }
 
   const body = document.createElement('div');
-  body.className = 'sm-body';
+  body.className = 'st-more-body';
   for (const entry of row.entries) {
     if (row.entries.length > 1) {
       const tag = document.createElement('div');
-      tag.className = 'sm-tag';
+      tag.className = 'st-more-tag';
       const stamp = clockOf(entry);
       tag.textContent = (stamp ? stamp + ' · ' : '') + stepStateText(entry).text;
       body.appendChild(tag);
@@ -1681,55 +1694,33 @@ function renderStepModal() {
 
     if (row.kind === 'thinking') {
       const pre = document.createElement('pre');
-      pre.className = 'sm-code';
+      pre.className = 'st-more-code';
       pre.textContent = String(entry.block?.text || '');
       body.appendChild(pre);
     } else {
       const block = document.createElement('div');
-      block.className = 'sm-block';
+      block.className = 'st-more-block';
       appendSections(block, entry.block || {});
       body.appendChild(block);
     }
   }
 
-  const foot = document.createElement('div');
-  foot.className = 'sm-foot';
-  const prev = document.createElement('button');
-  prev.type = 'button';
-  prev.className = 'sm-btn';
-  prev.textContent = '上一条';
-  prev.disabled = index <= 0;
-  prev.addEventListener('click', () => moveStepModal(-1));
-
-  const next = document.createElement('button');
-  next.type = 'button';
-  next.className = 'sm-btn';
-  next.textContent = '下一条';
-  next.disabled = index >= rows.length - 1;
-  next.addEventListener('click', () => moveStepModal(1));
-
-  const done = document.createElement('button');
-  done.type = 'button';
-  done.className = 'sm-btn';
-  done.textContent = '关闭';
-  done.addEventListener('click', closeStepModal);
-
-  const spacer = document.createElement('span');
-  spacer.className = 'spacer';
-  foot.append(prev, next, spacer, done);
-
-  dlg.append(head, line, body, foot);
-  scrim.appendChild(dlg);
+  detail.append(line, body);
   body.scrollTop = keep;
 }
 
-/** 这一行正好是弹窗里那条：内容变了就顺手刷新（正在跑的输出会一直长）。 */
-function refreshStepModal(entry) {
-  if (!stepModal) return;
-  const row = stepModal.rows[stepModal.index];
-  if (!row || !row.entries.some((item) => item === entry)) return;
-  renderStepModal();
+/** 这一步正在被更新：展开着就把内容也换新（跑着的输出会一直长）。 */
+function refreshStepDetail(entry) {
+  if (!openStep) return;
+  const row = openStep.rows[openStep.index];
+  if (!row || !row.entries.some((candidate) => candidate === entry)) return;
+  renderStepDetail(openStep.detail, openStep.rows, openStep.index);
 }
+
+/** Esc 收掉展开的那一条。 */
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && openStep) closeStepDetail();
+});
 
 function formatDuration(ms) {
   return ms >= 1000 ? (ms / 1000).toFixed(1) + ' 秒' : Math.round(ms) + ' 毫秒';
@@ -1963,6 +1954,7 @@ function renderQueue() {
   if (queueEditId && !entries.some((entry) => entry.id === queueEditId)) {
     queueEditId = null;
     el.input.value = '';
+    rememberDraft();
     autoGrow();
     updateSendReady();
   }
@@ -2115,35 +2107,70 @@ function patchItem(item) {
  */
 function updateLiveTurn(node, turn) {
   const assistant = node.querySelector('.msg.assistant');
-  const wrap = assistant && assistant.querySelector('.work');
-  if (!wrap) return false;
+  if (!assistant) return false;
 
-  const { work, texts } = turnParts(turn);
-  if (!work.length || texts.length) return false;
+  const { segments } = turnParts(turn);
+  if (!segments.length) return false;
 
-  const target = work[work.length - 1];
+  const last = segments[segments.length - 1];
+  const groups = assistant.querySelectorAll('.work');
+  const texts = segments.filter((segment) => segment.kind === 'text').length;
+
+  // 正文在长：只换最后一个正文节点的内容，别的（前面的工作段、正文段）一个都不碰。
+  if (last.kind === 'text') {
+    const mds = assistant.querySelectorAll('.md');
+    if (mds.length !== texts) return false;
+    const target = mds[mds.length - 1];
+    const html = renderMarkdown(last.text);
+    // 只有最后那段正文真变了才就地换；别的段变了（压缩后重写历史之类）让它整轮重画去。
+    if (target.innerHTML === html) return false;
+    target.innerHTML = html;
+    return true;
+  }
+
+  // 最后一段是工作：只动最后那一组，前面的正文和更早的工作段保持原样。
+  const wrap = groups[groups.length - 1];
+  if (!wrap || wrap.dataset.seg !== String(segments.length - 1)) return false;
+
+  const body = wrap.querySelector('.work-body');
+  if (!body) return false;
+
+  const rows = groupWork(last.entries);
+
+  // 步骤数变了（换步骤，或者又合并进一条）：只重画这一组的身子。
+  if (body.children.length !== rows.length) {
+    body.innerHTML = '';
+    rows.forEach((row, index) => body.appendChild(workRowNode(rows, index)));
+    if (typeof wrap.follow === 'function') wrap.follow();
+    updateWorkHead(wrap, last.entries);
+    return true;
+  }
+
+  const target = last.entries[last.entries.length - 1];
+  const row = body.lastElementChild;
   const targetId = String(target.block?.id || '');
-  const rows = wrap.querySelectorAll('.work-body .st-row');
-  const row = rows[rows.length - 1];
-  if (!row) return false;
-
-  // 最后一行还是它才就地改；换了（合并、换种类、换步）就整轮重画，展开状态在会话里存着，不会丢。
   if ((row.dataset.lastStep || row.dataset.step) !== targetId) return false;
 
-  updateLiveRow(row, target);
+  updateLiveRow(row, target, rows[rows.length - 1]);
 
   if (typeof wrap.follow === 'function') wrap.follow();
-
-  const head = wrap.querySelector('.work-head');
-  if (head) {
-    head.dataset.steps = String(work.length);
-    const title = head.querySelector('.work-title');
-    if (title) {
-      const since = Number(head.dataset.since || 0) || Date.now();
-      title.textContent = workLabel(Date.now() - since, work.length, true);
-    }
-  }
+  updateWorkHead(wrap, last.entries);
   return true;
+}
+
+/** 工作段标题上那行「工作中 9 步 · 47 秒」跟着走。 */
+function updateWorkHead(wrap, entries) {
+  const head = wrap.querySelector('.work-head');
+  if (!head) return;
+
+  head.dataset.steps = String(entries.length);
+  const title = head.querySelector('.work-title');
+  if (!title) return;
+
+  const since = Number(head.dataset.since || 0);
+  title.textContent = since
+    ? workLabel(Date.now() - since, entries.length, true)
+    : workLabel(0, entries.length, false);
 }
 
 /** 两个状态节点长得一样吗：一样就留着老的，别把动画重置了。 */
@@ -2165,13 +2192,31 @@ function sameState(left, right) {
   return Boolean(left.querySelector('.spin')) === Boolean(right.querySelector('.spin'));
 }
 
-/** 就地改一行：摘要和状态。内容在弹窗里，不在这儿铺。 */
-function updateLiveRow(row, entry) {
+/** 就地改一行：摘要、条数与状态。内容在展开的详情里，不在这儿铺。 */
+function updateLiveRow(row, entry, group) {
+  row.dataset.lastStep = String(entry.block?.id || '');
+
   const summary = stepSummaryText(entry);
   const sum = row.querySelector('.st-sum');
   if (sum) {
     sum.textContent = summary.text;
     sum.classList.toggle('mono', summary.mono);
+  }
+
+  // 连续同类会合并成「×3」，新的一条并进来时这个数字要跟着涨。
+  const total = group ? group.entries.length : 1;
+  const count = row.querySelector('.st-count');
+  if (total > 1) {
+    if (count) {
+      count.textContent = '×' + total;
+    } else if (sum) {
+      const node = document.createElement('span');
+      node.className = 'st-count';
+      node.textContent = '×' + total;
+      sum.parentElement.insertBefore(node, sum);
+    }
+  } else if (count) {
+    count.remove();
   }
 
   const state = row.querySelector('.st-state');
@@ -2182,8 +2227,8 @@ function updateLiveRow(row, entry) {
     if (!sameState(state, next)) state.replaceWith(next);
   }
 
-  // 弹窗正开着这一条就把内容也换新（正在跑的输出会一直长）。
-  refreshStepModal(entry);
+  // 展开着的详情也跟着换新（正在跑的输出会一直长）。
+  refreshStepDetail(entry);
 }
 
 
@@ -2780,9 +2825,12 @@ function showWorkspace(hasSession) {
 function openSession(conversation) {
   if (!conversation || !conversation.id) return;
   switchView('chat');
+  // 先把当前输入框存进它自己的会话，再换。
+  rememberDraft();
   const known = app.byKey.get(conversation.id);
   if (known) {
     app.currentKey = conversation.id;
+    restoreDraft(conversation.id);
     app.activeCwd = conversation.cwd || '';
     showWorkspace(true);
     renderThread();
@@ -4500,7 +4548,33 @@ el.input.addEventListener('input', () => {
   autoGrow();
   updateSendReady();
   queueCompletion();
+  rememberDraft();
 });
+
+/**
+ * 草稿按会话存。
+ * 以前只有一个输入框：在 A 里打了一段话没发，切到 B 直接回车，那段话就发到 B 去了。
+ * 现在切会话就换一份草稿，谁也不串。
+ */
+function rememberDraft() {
+  const key = app.currentKey;
+  if (!key) return;
+  // 正在改队列里的某一条：输入框里装的是那条消息，不是草稿。
+  if (queueEditId) return;
+
+  const text = el.input.value;
+  if (text.trim()) app.drafts.set(key, text);
+  else app.drafts.delete(key);
+}
+
+function restoreDraft(key) {
+  const text = (key && app.drafts.get(key)) || '';
+  if (el.input.value !== text) {
+    el.input.value = text;
+    autoGrow();
+    updateSendReady();
+  }
+}
 
 el.input.addEventListener('keydown', (event) => {
   if (completionOpen()) {
@@ -5197,6 +5271,8 @@ function submitPrompt() {
 
   send(message);
   el.input.value = '';
+  // 发出去了就不算草稿，切回来别再冒出来。
+  app.drafts.delete(session.key);
   app.attachments = [];
   renderAttachments();
   autoGrow();
@@ -5675,8 +5751,14 @@ function onSessionState(message) {
     session.ui = previous.ui;
   }
 
+  // 还没有会话时打的字（先选工作区那一步）：别在会话建好时被换掉了，直接认领成它的草稿。
+  if (!app.currentKey && !queueEditId && el.input.value.trim()) {
+    app.drafts.set(key, el.input.value);
+  }
+  rememberDraft();
   app.byKey.set(key, session);
   app.currentKey = key;
+  restoreDraft(key);
   app.activeCwd = cwd;
   pendingCwd = '';
   app.pendingCwd = '';
