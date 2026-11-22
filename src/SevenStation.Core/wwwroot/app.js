@@ -466,6 +466,7 @@ function statusToast(text) {
   let timer = 0;
 
   return {
+    node,
     update(next, kind) {
       window.clearTimeout(timer);
       node.className = 'toast' + (kind ? ' ' + kind : '');
@@ -4199,13 +4200,56 @@ el.updLater.addEventListener('click', () => {
   renderUpdateStrip();
 });
 
-el.updGo.addEventListener('click', () => {
-  switchView('settings');
-  requestAnimationFrame(() => {
-    const card = document.getElementById('runtimeCard');
-    if (card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+el.updGo.addEventListener('click', () => requestUpgrade());
+
+function requestUpgrade() {
+  setUpgradeBusy(true);
+  send({ type: 'upgrade_pi' });
+}
+
+/** 升级期间把三处入口都按住：一次只能跑一个，重复点没有意义。 */
+function setUpgradeBusy(busy) {
+  el.updGo.disabled = busy;
+  el.updGo.textContent = busy ? '正在升级…' : '升级';
+  document.querySelectorAll('.upd-upgrade').forEach((button) => {
+    button.disabled = busy;
+    button.textContent = busy ? '正在升级…' : '升级';
   });
-});
+}
+
+/**
+ * 升级只有两种状态进卡片：开始（转圈）和结束（原地换字）。
+ * 中间那些下载进度不刷到界面上——一张卡片翻个面就够了，别让人读 npm 的日志。
+ */
+let upgradeCard = null;
+
+function handleUpdateJob(message) {
+  if (message.state === 'running') {
+    // Pi 升完还要升扩展：还是这一张卡片，只换字。
+    const text = message.target === 'extensions'
+      ? '正在更新扩展…'
+      : `正在升级 Pi${message.from && message.to ? ` ${message.from} → ${message.to}` : ''}…`;
+    if (upgradeCard) {
+      setToastText(upgradeCard.node, text);
+    } else {
+      upgradeCard = statusToast(text);
+    }
+
+    setUpgradeBusy(true);
+    return;
+  }
+
+  const failed = message.state === 'failed';
+  const text = message.text || (failed ? '升级没成功' : '升级完成');
+  if (upgradeCard) {
+    upgradeCard.update(text, failed ? 'error' : '');
+    upgradeCard = null;
+  } else {
+    toast(text, failed ? 'error' : '');
+  }
+
+  setUpgradeBusy(false);
+}
 
 function renderRuntimeCard() {
   const card = makePageCard('运行时');
@@ -4286,6 +4330,16 @@ function renderRuntimeCard() {
 
   const actions = document.createElement('div');
   actions.className = 'page-actions';
+
+  if (pi && pi.hasUpdate) {
+    const upgrade = document.createElement('button');
+    upgrade.type = 'button';
+    upgrade.className = 'ghost-btn small upd-upgrade';
+    upgrade.textContent = '升级';
+    upgrade.addEventListener('click', () => requestUpgrade());
+    actions.append(upgrade);
+  }
+
   const check = document.createElement('button');
   check.type = 'button';
   check.className = 'ghost-btn small';
@@ -5882,6 +5936,10 @@ function dispatch(message) {
       app.skills = message;
       el.skillsCount.textContent = String((message.items || []).length);
       if (app.view === 'skills') renderPage('skills');
+      break;
+
+    case 'update_job':
+      handleUpdateJob(message);
       break;
 
     case 'updates':

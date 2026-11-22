@@ -60,6 +60,7 @@ public sealed class CenterHub
     private readonly List<CenterConnection> _clients = new();
     private readonly ConversationStore _store;
     private readonly PiUpdates _updates;
+    private readonly PiUpgrader _upgrader = new();
 
     public CenterHub(ConversationStore store, string listenUrl)
     {
@@ -91,10 +92,16 @@ public sealed class CenterHub
             ["workspaces"] = new JsonArray(RecentWorkspaces().Select(entry => (JsonNode?)JsonValue.Create(entry)).ToArray()),
         });
 
-        // 更新状态可能已经查过了，新连上的客户端不用干等下一轮。
-        if (_updates.Current()["checkedAt"] is not null)
+        // 更新状态可能已经查过了，新连上的客户端不用干等下一轮；
+        // 还没查过就现在查一次，别让人对着空白等 20 秒。
+        var known = _updates.Current();
+        if (known["checkedAt"] is not null)
         {
-            connection.Send(_updates.Current());
+            connection.Send(known);
+        }
+        else
+        {
+            _ = CheckUpdatesAsync(force: true);
         }
     }
 
@@ -223,6 +230,10 @@ public sealed class CenterHub
 
                 case "list_skills":
                     SendSkills(message["cwd"]?.GetValue<string>() ?? string.Empty, sender);
+                    break;
+
+                case "upgrade_pi":
+                    _ = UpgradePiAsync();
                     break;
 
                 case "check_updates":
@@ -1031,6 +1042,101 @@ public sealed class CenterHub
             }
         });
     }
+
+    /// <summary>
+    /// 升级：Pi 自己先升，再升扩展。一次只跑一个；有对话正在跑就等着——
+    /// 升级会把旧版本目录收拾掉，正在用的进程正好指着那边。
+    /// </summary>
+    private async Task UpgradePiAsync()
+    {
+        if (_upgrader.Busy)
+        {
+            Broadcast(JobFailed("已经在升级了，等这一次跑完"));
+            return;
+        }
+
+        if (_live.Values.Any(state => state.Streaming))
+        {
+            Broadcast(JobFailed("现在有对话正在跑，等它结束再升级"));
+            return;
+        }
+
+        // 还没查过就现查一次：点得比第一轮检查还早的时候，不能让「没有要升级的东西」糊弄过去。
+        var before = _updates.Current();
+        if (before["checkedAt"] is null)
+        {
+            before = await _updates.CheckAsync(force: true).ConfigureAwait(false);
+            Broadcast(before);
+        }
+
+        var pi = before["pi"];
+        var from = pi?["installed"]?.GetValue<string>() ?? string.Empty;
+        var to = pi?["latest"]?.GetValue<string>() ?? string.Empty;
+        var piOutdated = pi?["hasUpdate"]?.GetValue<bool>() == true;
+        var stale = (before["packages"] as JsonArray)?
+            .Count(item => item?["hasUpdate"]?.GetValue<bool>() == true) ?? 0;
+
+        if (!piOutdated && stale == 0)
+        {
+            Broadcast(JobFailed("没有要升级的东西"));
+            return;
+        }
+
+        if (piOutdated)
+        {
+            Broadcast(JobRunning("Pi", from, to));
+            var (ok, message) = await _upgrader.RunAsync(new[] { "update", "--self" }).ConfigureAwait(false);
+            if (!ok)
+            {
+                var still = from.Length > 0 ? $"，还在 {from}" : string.Empty;
+                Broadcast(JobFailed($"升级没成功：{message}{still}"));
+                return;
+            }
+        }
+
+        if (stale > 0)
+        {
+            Broadcast(JobRunning("extensions", string.Empty, string.Empty));
+            var (ok, message) = await _upgrader.RunAsync(new[] { "update", "--extensions" }).ConfigureAwait(false);
+            if (!ok)
+            {
+                Broadcast(JobFailed($"扩展没更新成功：{message}"));
+                return;
+            }
+        }
+
+        // 先把结果说出来：界面上的卡片立刻翻面，不用等重新查一遍的网络往返。
+        var installed = to.Length > 0 ? to : from;
+        Broadcast(new JsonObject
+        {
+            ["type"] = "update_job",
+            ["state"] = "done",
+            ["text"] = piOutdated && stale > 0
+                ? $"Pi 已升级到 {installed}，{stale} 个扩展也更新好了"
+                : piOutdated
+                    ? $"Pi 已升级到 {installed}，新开的对话就用这个版本"
+                    : $"{stale} 个扩展已更新",
+        });
+
+        // 然后重新查一遍，让版本号和提示条跟上（也顺手确认真的换了）。
+        Broadcast(await _updates.CheckAsync(force: true).ConfigureAwait(false));
+    }
+
+    private static JsonObject JobRunning(string target, string from, string to) => new()
+    {
+        ["type"] = "update_job",
+        ["state"] = "running",
+        ["target"] = target,
+        ["from"] = from,
+        ["to"] = to,
+    };
+
+    private static JsonObject JobFailed(string text) => new()
+    {
+        ["type"] = "update_job",
+        ["state"] = "failed",
+        ["text"] = text,
+    };
 
     private async Task CheckUpdatesAsync(bool force)
     {
