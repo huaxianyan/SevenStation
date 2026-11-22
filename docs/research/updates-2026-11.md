@@ -49,17 +49,28 @@ registry.npmjs.org/@earendil-works/pi-coding-agent/latest   1.6.0   ← 确实�
 - 页面上的「检查更新」强制刷新；
 - 超时 5 秒，失败只让徽标消失，不报错、不阻塞界面。
 
-**npm 扩展**：`registry.npmjs.org/<name>/latest`，与 `package.json` 的版本比。
+**扩展**：不自己定规则，照 Pi `core/package-manager.js` 的 `checkForAvailableUpdates()` 抄。
+它就是 Pi 在交互模式启动时算「有几个包该更新」的那套（`dist/core/package-manager.js:1042`）：
 
-**git 扩展**：ref = source 里的 `@xxx`（没有就用当前分支），
-`git ls-remote origin <ref>` 的首 7 位与本地 `rev-parse HEAD` 的前 7 位比。**不同就是有新版**——
-这里只判断「有没有」，不判断「谁能自动合」，因为钉住的仓库可能要 rebase。
+1. **只看全局 + 项目的 `packages[]`**，跳过 `temporary` 范围；
+2. **跳过 `pinned`**：npm 里写了精确版本号的（`isExactNpmVersion`）、git 里带了任何 ref 的
+   （`buildGitSource` 里 `pinned: Boolean(args.ref)`，分支、tag、sha 都算）——**一律不检查、不提示更新**。
+   所以 `pi-smart-compact@v2ex-recovery` 这种钉住的分支，Pi 自己也不认为它「有新版」；
+3. **npm**：读安装目录 `package.json` 的版本，跑 `npm view <spec> version --json` 取最新
+   （有 range 时 `maxSatisfying`，否则取最大），`semver.gt(最新, 已装)` 才算有更新；
+4. **git**：`git ls-remote origin refs/heads/<上游分支>`（来自 `rev-parse --abbrev-ref @{upstream}`，
+   不是 `origin/*` 就退回 `ls-remote origin HEAD`），与本地 `git rev-parse HEAD` 比 —— **不同就是有新版**。
+   注意是 `ls-remote`，不 fetch、不动工作区，非侵入；
+5. **`PI_OFFLINE`** 环境变量开着时直接不查；
+6. **任何异常都当「没有更新」**（`catch { return false }`），静默。
 
-**技能**：不加版本，加两样能看的：
-- 来源：用户 / 项目；如果它的路径在某个扩展包目录里，标成「来自 <包名>」；
-- 本地目录的 `SKILL.md` 修改时间。
+这套规则的好处是不会和 `pi update` 打架：界面说有新版、命令说已是最新这种错位不会出现。
 
-技能升级不做，理由：18 个技能里没有一个是从远端拉的，升级渠道本来就不存在。
+顺带记两条 Pi 更新时的行为，界面上要提示：
+- git 包升级是 `git reset --hard <目标提交>` + `git clean -fdx` + 装依赖 —— **本地改动会被丢掉**；
+- npm 包升级是装 `@latest`（或配置里写的 spec）。
+
+
 将来如果 `pi install` 支持带技能的包，技能的版本就跟着包走，自动就覆盖了。
 
 ### 2. 升级动作
@@ -176,7 +187,25 @@ Pi              1.5.2 → 1.6.0（有新版）      [检查更新] [升级 Pi]
 6. **协议兼容**：1.6.0 仍然支持 `--append-system-prompt` / `--mode rpc` / `--session`；
    起 `--mode rpc` 发 `{"id":1,"type":"get_state"}` 拿到 `success: true` 与正常的 `data`（模型、思考等级都在）。
 
-剩下没解决的一条：git 扩展的「有新版」判定（脏工作区、钉 tag 还是分支）还没试。
+**用 Pi 的原命令核了一遍（2026-11-22，本机）**：
+
+| 包 | 已装 / 本地 | 最新 / 远端 | Pi 的判定 |
+| --- | --- | --- | --- |
+| pi-web-access | 0.48.0 | 0.48.0 | 无更新 |
+| pi-btw | 0.8.1 | 0.8.1 | 无更新 |
+| pi-proxy-router | 1.2.4 | 1.2.4 | 无更新 |
+| @narumitw/pi-lsp | 0.49.12 | 0.49.12 | 无更新 |
+| pi-v2ex-quota | 5eeeaca | 5eeeaca（`origin/main`） | 无更新 |
+| pi-smart-compact | 29622f2 | 29622f2（`origin/v2ex-recovery`） | **跳过**（钉了 ref） |
+| TokenEconomizer | 4a04fe4 | 1bfeccd（`origin/main`） | **有更新** |
+
+顺带修正我前面一个错：早先拿 `git ls-remote origin HEAD`（默认分支）去比，得出「pi-smart-compact 有新提交」——
+那是错的。Pi 比的是**当前分支的上游**（`@{upstream}` → `refs/heads/v2ex-recovery`），按它的规则这个包既被钉住、
+上游也确实没新提交。
+
+这一节原来的疑问（「钉 tag 还是分支」）到此解决：Pi 的口径是**任何 ref 都算钉住，直接跳过检查**。
+脏工作区不影响「有没有新版」的判定（判定用 `ls-remote`，不碰工作区），但会影响**升级本身**
+（`git reset --hard` + `git clean -fdx` 会丢本地改动），界面上照实提示就行。
 
 ## 五、实施顺序与工作量
 

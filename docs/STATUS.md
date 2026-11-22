@@ -22,6 +22,27 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-074：扩展「有新版」的判定照 Pi 自己的规则（2026-11-22）
+
+用户要求：别自己发明判定，查 Pi 怎么界定扩展有没有更新，按那个来。查到并核对了
+`dist/core/package-manager.js` 的 `checkForAvailableUpdates()`：
+
+- 只查全局 + 项目的 `packages[]`，跳过 `temporary`；**`pinned` 一律跳过**（npm 精确版本号、
+  git 任何 ref —— `buildGitSource` 里 `pinned: Boolean(args.ref)`）；
+- npm：`npm view <spec> version --json`，`semver.gt(最新, 已装)`；
+- git：`git ls-remote origin refs/heads/<上游分支>`（来自 `@{upstream}`，非 `origin/*` 退回 `HEAD`）
+  与本地 `rev-parse HEAD` 比，不同就是有新版；**用 ls-remote，不 fetch、不碰工作区**；
+- `PI_OFFLINE` 时不查；任何异常都当「没有更新」。
+
+用这套原命令在本机核了一遍：4 个 npm 全部最新；git 里只有 **TokenEconomizer 有更新**（4a04fe4 → 1bfeccd），
+pi-v2ex-quota 一致，pi-smart-compact 钉住被跳过（且其上游 `origin/v2ex-recovery` 也没新提交）。
+顺带修正早先的错误判断：拿默认分支 `origin/HEAD` 去比是错的，Pi 比的是当前分支的上游。
+
+另外记下 Pi 升级时的破坏性行为：git 包是 `git reset --hard` + `git clean -fdx` + 装依赖，
+**本地改动会丢**；npm 包装 `@latest`（或配置里的 spec）。
+
+方案文档同步改在 `docs/research/updates-2026-11.md` 的「三、方案」与「四点六」两节。
+
 ## STATUS-073：隔离实跑 pi update（2026-11-22，未动产品代码）
 
 在 `work/smoke/pi-home`（真实 `~/.pi/agent` 的副本，不含 sessions）上跑 `pi update --self`，标准输入接 `/dev/null`：
