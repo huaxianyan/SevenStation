@@ -22,6 +22,30 @@
 - 已知限制（写进发布说明）：Seven Station Core 目前只放 Windows 包，之后会出 Linux 版；局域网限本地子网、没做 TLS；
   手机窄屏未调；数据库没有版本化迁移，只有「查列再补」这一处临时逻辑。
 
+## STATUS-061：Control 与 Core 启动就要管理员（2026-11-22，未发版）
+
+用户定：这两个东西**打开就要 UAC，不给权限就不启动**——反正开关、防火墙、服务状态全要管理员，
+每次都确认一遍太烦。据此调整：
+
+- **Seven Station Control**：`main()` 里先看权限，没有就以管理员身份重开自己然后退出；用户点「否」就到此为止。
+- **Seven Station Core**：不是服务、不在沙箱里、也没有 `--elevated` 标记，就同样重开自己。
+- **`--elevated` 标记**：重开时带上它，那份不再要求权限。判定权限的代码万一有毛病，也不会变成无限弹 UAC。
+- **放行**：`SEVENSTATION_PROFILE=test`、`SEVENSTATION_CORE_HOME`、`SEVENSTATION_DATA_DIR` 都不拦，否则开发寸步难行。
+- 启动日志里多了一句「管理员权限 True/False」，出问题先看它。
+
+**执行代理反而不许提权**：任务 XML 里是 `InteractiveToken` + `LeastPrivilege`，代理拿到普通令牌，
+Pi 也就不会继承管理员身份——不然刚统一好的「跟终端里用 pi 一样」又没了。
+
+于是执行代理回到计划任务方案（STATUS-059）：STATUS-060 换 Run 键只是因为非提权建不了带 Principal 的任务；
+现在 Control 提权了，任务建得出来，`schtasks /run` 起的又是普通权限进程，正好。
+
+**验证**：`cargo test --release` 9 个全过（含任务 XML 必须 `LeastPrivilege`、必须 `PT0S`）；
+沙箱起核心 + 代理 + 真发一句话，`✓ 代理链路通了，Pi 回了：收到`；发布出来的 dll 里确认有新代码。
+
+出包：`dist/SevenStationCore-win-x64-0.4.1.msi`（`5181481b6aa45a2f…`）。
+
+**注意**：Control 每次启动都会要一次管理员（已经开着一个时再点，UAC 过后会并进已有窗口）。
+
 ## STATUS-060：计划任务建不起来，改成 Run 键；重启走壳命令（2026-11-22，未发版）
 
 用户装了 STATUS-059 的包，Control 反复重开都显示「执行代理：未注册」。查 Control 的日志：

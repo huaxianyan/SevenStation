@@ -20,7 +20,25 @@ if (args.Contains("--runner"))
 
 var runningAsService = WindowsServiceHelpers.IsWindowsService();
 Log.Initialize(ProductPaths.CoreLogs, "center.log");
-Log.Write($"启动（{(runningAsService ? "Windows 服务" : "Seven Station Control")}），目录 {ProductPaths.CoreHome}");
+
+// 交互式启动要求管理员：改监听、动防火墙、重启服务都要它。不给 UAC 就不启动。
+// 服务角色本来就是 SYSTEM，不用；测试用临时目录（SEVENSTATION_CORE_HOME / _DATA_DIR）也放行，
+// 不然开发时每次都要过一遍 UAC。
+var sandbox = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SEVENSTATION_CORE_HOME"))
+    || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SEVENSTATION_DATA_DIR"));
+if (!runningAsService && !sandbox && !args.Contains("--elevated") && !Elevation.IsElevated)
+{
+    Log.Write("不是管理员，重新以管理员身份启动");
+    if (!Elevation.Relaunch())
+    {
+        Log.Write("没拿到管理员权限，退出");
+        Environment.Exit(1);
+    }
+
+    Environment.Exit(0);
+}
+Log.Write($"启动（{(runningAsService ? "Windows 服务" : "Seven Station Control")}），目录 {ProductPaths.CoreHome}，" +
+    $"管理员权限 {Elevation.IsElevated}");
 
 MigrateLegacyData();
 

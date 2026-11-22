@@ -294,6 +294,21 @@ fn main() {
         std::process::exit(core::run_elevated(&args[2..]));
     }
 
+    // 没有管理员权限就以管理员身份重开，用户不给 UAC 就到此为止：
+    // 开关、防火墙、服务状态这些都要管理员，省得每动一下就弹一次确认。
+    // 测试档案（SEVENSTATION_PROFILE）不拦，否则开发时寸步难行。
+    // 带 --elevated 的是刚刚被自己拉起来的那份，别再要一次权限（防无限弹 UAC）。
+    if core::profile().is_none() && !args.iter().any(|arg| arg == "--elevated") && !core::is_elevated() {
+        log_line("不是管理员，重新以管理员身份启动");
+        match core::relaunch_elevated() {
+            Ok(()) => std::process::exit(0),
+            Err(message) => {
+                log_line(&format!("拿不到管理员权限，退出：{message}"));
+                std::process::exit(1);
+            }
+        }
+    }
+
     // 测试档案（SEVENSTATION_PROFILE）不挂单实例插件：否则测试版会并进正在用的正式版，
     // 用户那边会莫名其妙弹出一个窗口，测试也会读到正式版的真实状态。
     let profile = core::profile();

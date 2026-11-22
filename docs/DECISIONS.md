@@ -133,3 +133,15 @@ Linux 版等用户的 Linux 环境就绪再做，代码里已经有 `OperatingSy
 - **没登录就是不能用**：Windows 上接受这个结果。锁屏（Win+L）不影响，注销或停在校验界面时不能跑。
 - **Windows 是过渡**：后面主目标是 Linux，那边的会话模型不一样，到时要重新看，别把 Windows 的这套当通用结论。
 
+## D13 交互式启动一律要求管理员，执行代理例外
+
+2026-11-22 用户定。Seven Station Control 与 Seven Station Core（交互式启动时）打开就要管理员权限，
+不给 UAC 就不启动：开关、防火墙、监听地址、服务状态全都要管理员，一次授权比每次弹确认省事。
+
+唯一的例外是**执行代理**（`SevenStation.Core.exe --runner`）：它刻意用计划任务的
+`InteractiveToken` + `LeastPrivilege` 跑，拿普通权限令牌。理由是 Pi 由它起，Agent 不该继承管理员身份——
+那既危险，也跟「用户在终端里用 pi」不一致（D12）。
+
+判断权限的代码必须配合 `--elevated` 标记：重新拉起的那份不再要求权限，避免判定出错时无限弹 UAC。
+测试档案（`SEVENSTATION_PROFILE`、临时 `SEVENSTATION_CORE_HOME`）不受这条约束。
+

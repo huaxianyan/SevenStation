@@ -663,23 +663,56 @@ fn parse_log_time(line: &str) -> Option<time::OffsetDateTime> {
 
 /// 需要管理员时把自己再拉起来一次（UAC），子进程做完就退。
 /// 当前进程有没有管理员权限：`net session` 只有管理员跑得动。
-fn is_elevated() -> bool {
+pub fn is_elevated() -> bool {
     run("net.exe", &["session"]).0 == 0
 }
 
-/// 把执行代理挂上：登录自启写进 Run 键，然后现在就拉起来。
-/// 两件都不需要管理员；已经在跑时新起的那个会自己退出，所以每次启动都调一遍是安全的。
+/// 把执行代理挂上：任务不在就建（要管理员，Control 现在本来就要求管理员），在就叫它跑一次。
+/// 任务建一次就一直在，之后每次启动只是顺手 `/run`。
 pub fn ensure_runner() -> Result<String, String> {
+    if crate::runner::registered() {
+        return match crate::runner::run_now() {
+            Ok(()) => Ok("执行代理已在跑".into()),
+            Err(message) => Ok(format!("登录任务已在，但没拉起来：{message}")),
+        };
+    }
+
     let exe = core_exe_path()?;
-    crate::runner::ensure_autostart(&exe)?;
-    crate::runner::spawn(&exe)?;
-    Ok("已挂上执行代理（登录时自动启动）".into())
+    crate::runner::register(&exe)
 }
 
-/// 界面上的「重启代理」。
+/// 界面上的「重启代理」：先收掉，再叫任务起来（任务不在就顺手补上）。
 pub fn restart_runner() -> Result<String, String> {
-    let exe = core_exe_path()?;
-    crate::runner::restart(&exe)
+    if !crate::runner::registered() {
+        return ensure_runner();
+    }
+
+    crate::runner::end();
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    crate::runner::run_now()?;
+    Ok("已重新启动执行代理。".into())
+}
+
+/// 没有管理员权限就以管理员身份重新起一个自己，然后退出。
+/// 用户不给 UAC 就什么都不做——这套东西离了管理员权限本来也干不成事。
+pub fn relaunch_elevated() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|error| format!("找不到自己的位置：{error}"))?;
+    let script = format!(
+        "Start-Process -FilePath '{}' -ArgumentList '--elevated' -Verb RunAs",
+        exe.display()
+    );
+
+    let status = Command::new("powershell.exe")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map_err(|error| format!("起不了管理员进程：{error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("没拿到管理员权限".into())
+    }
 }
 
 fn elevate(args: &[&str]) -> Result<(), String> {
