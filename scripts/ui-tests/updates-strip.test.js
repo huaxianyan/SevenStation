@@ -3,6 +3,13 @@ const { boot, checker } = require('./boot');
 
 const { document, window } = boot(`
   window.__dispatch = dispatch;
+  window.__session = function (key, models) {
+    const session = makeSession(key, { isStreaming: false }, [], 'E:/Dev/SevenStation');
+    session.models = { models };
+    app.byKey.set(key, session);
+    app.currentKey = key;
+    return session;
+  };
   window.__switchView = switchView;
   window.__undismiss = function () { app.updDismissed = false; };
 `);
@@ -98,5 +105,34 @@ ok(/小时前刷新/.test(modelRow().textContent), '写着上次什么时候取�
 const refetch = [...fresh().querySelectorAll('button')].find((node) => node.textContent.includes('重取'));
 ok(Boolean(refetch), '有个重取模型的按钮');
 ok(refetch.disabled, '没有打开的对话时按钮按住（取清单要问 Pi）');
+
+// 点过「重取模型」之后卡片必须还能画：这里曾经引用了一个不存在的函数，
+// 一点就抛异常，设置页从「运行时」那张卡片开始整段消失。
+const session = window.__session('c-models', [
+  { provider: 'magpie', id: 'auto/deepseek-v4.1-flash', name: 'DeepSeek' },
+  { provider: 'magpie', id: 'auto/glm-5.2', name: 'GLM' },
+]);
+window.__dispatch({
+  type: 'updates',
+  checkedAt: '2026-11-22T19:00:00.000Z',
+  pi: { installed: '1.6.0', latest: '1.6.0', hasUpdate: false },
+  packages: [],
+  models: { count: 2, cachedAt: new Date(Date.now() - 3600 * 1000).toISOString() },
+});
+const refetchButton = () => [...document.getElementById('runtimeCard').querySelectorAll('button')]
+  .find((node) => node.textContent.includes('重取'));
+ok(!refetchButton().disabled, '有对话时「重取模型」可以点');
+refetchButton().click();
+window.__dispatch({
+  type: 'models',
+  key: session.key,
+  data: { models: [{ provider: 'magpie', id: 'a', name: 'A' }, { provider: 'magpie', id: 'b', name: 'B' }, { provider: 'magpie', id: 'c', name: 'C' }] },
+  thinkingLevels: {},
+});
+ok(Boolean(document.getElementById('runtimeCard')), '重取之后「运行时」卡片还在（不再整段消失）');
+const after = [...document.getElementById('runtimeCard').querySelectorAll('.kv-row')]
+  .find((row) => row.querySelector('.kv-key').textContent === '模型目录');
+ok(after.textContent.includes('3 个'), '条数换成新的了：' + after.textContent);
+ok(after.textContent.includes('刚刚'), '时间也换了：' + after.textContent);
 
 done();

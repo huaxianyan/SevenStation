@@ -4307,7 +4307,7 @@ function renderRuntimeCard() {
 
   const models = data && data.models;
   if (models) {
-    const count = app.modelsAt ? (modelItems(current()) || []).length || models.count : models.count;
+    const count = app.modelsAt && modelEntries().length ? modelEntries().length : models.count;
     const stamp = app.modelsAt || (models.cachedAt ? Date.parse(models.cachedAt) : 0);
     const when = stamp ? relativeTime(stamp) + '刷新' : '';
     addRow('模型目录', [count > 0 ? `${count} 个${when ? ' · ' + when : ''}` : '还没取过']);
@@ -4390,11 +4390,24 @@ function renderRuntimeCard() {
   return card;
 }
 
+/**
+ * 一张卡片画不出来不该把整页连带拖走：出错记到控制台，后面的照画。
+ * （2026-11-23：卡片里引用错一个函数，结果「运行时」往后整段设置都消失了，界面上也没有任何提示。）
+ */
+function appendCard(build) {
+  try {
+    const node = build();
+    if (node) el.pageInner.appendChild(node);
+  } catch (error) {
+    console.error('设置页有一张卡片没画出来：', error);
+  }
+}
+
 function renderSettingsPage() {
   el.pageInner.appendChild(makePageHead('设置'));
-  el.pageInner.appendChild(renderAppearanceCard());
-  el.pageInner.appendChild(renderFontCard());
-  el.pageInner.appendChild(renderRuntimeCard());
+  appendCard(renderAppearanceCard);
+  appendCard(renderFontCard);
+  appendCard(renderRuntimeCard);
 
   const connection = makePageCard('连接');
   const local = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
@@ -4406,11 +4419,10 @@ function renderSettingsPage() {
     ['访问', local ? '本机' : '局域网'],
   ]);
   el.pageInner.appendChild(connection);
-  el.pageInner.appendChild(renderTokenCard());
+  appendCard(renderTokenCard);
 
   // 只有装成桌面客户端时才有本机设置（浏览器里直接打开页面拿不到这个桥）。
-  const clientCenter = renderClientCenterCard();
-  if (clientCenter) el.pageInner.appendChild(clientCenter);
+  appendCard(renderClientCenterCard);
 
   const agent = app.agent;
   const card = makePageCard(agent ? agent.name : 'Agent');
