@@ -67,6 +67,8 @@
   .icon-demo { padding-top: 10px; border-top: 1px dashed var(--border); }
   .icon-demo .upd-strip { font-size: calc(11.5px * var(--fs-ui)); padding: 6px 9px; }
 
+  .icon-geo { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: calc(11px * var(--fs-ui)); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+
   .copy-table { border-collapse: collapse; font-size: calc(12.5px * var(--fs-ui)); }
   .copy-table th, .copy-table td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; vertical-align: top; }
   .copy-table th { background: var(--panel); font-weight: 600; }
@@ -94,7 +96,7 @@
           <nav class="nav">
             <button class="nav-item"><span class="nav-icon">◧</span>对话<span class="nav-count">2</span></button>
             <button class="nav-item"><span class="nav-icon">✦</span>技能<span class="nav-count">18</span></button>
-            <button class="nav-item"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></span></button>
+            <button class="nav-item"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span></button>
             <button class="nav-item"><span class="nav-icon">≡</span>设置</button>
           </nav>
           <div class="threads-head"><span class="threads-title">对话</span></div>
@@ -111,7 +113,7 @@
 
             <div class="composer">
               <div class="upd-strip">
-                <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></span>
+                <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span>
                 <span class="upd-text">Pi 有新版本 <strong>1.5.2 → 1.6.0</strong></span>
                 <span class="upd-actions">
                   <button class="ghost-btn small">稍后</button>
@@ -144,7 +146,7 @@
         </div>
 
         <div class="upd-strip" style="margin-bottom:12px">
-          <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></span>
+          <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span>
           <span class="upd-text">Pi 有新版本 1.5.2 → 1.6.0 · 升级要用 github 下载，约 40 MB</span>
           <span class="upd-actions"><button class="ghost-btn small">稍后</button><button class="ghost-btn small">升级</button></span>
         </div>
@@ -164,7 +166,7 @@
         <h3>侧栏两态</h3>
         <nav class="nav" style="display:flex;flex-direction:column;gap:2px">
           <button class="nav-item"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span></button>
-          <button class="nav-item is-active"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></span></button>
+          <button class="nav-item is-active"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span></button>
         </nav>
         <p class="page-note" style="margin-top:12px">数字始终是「装了几个」，有新版就多一个橙点；具体几个在扩展页里看，不把两个数挤在一起。</p>
       </div>
@@ -264,63 +266,68 @@
   </div>
 
 <div class="block">
-  <h2>G · 更新图标候选</h2>
-  <p class="why">只用颜色点信息不够：得一眼看出「有东西可以更新」。四个候选，上面 32px 看形状，下面按真实大小放进侧栏与提示条里看。</p>
+  <h2>G · 更新图标候选（方向：向上 = 升级）</h2>
+  <p class="why">向上箭头表示「版本提升」，向下箭头是「下载文件」——这里说的是升级，所以向上。
+  下面每张卡片底部的数字是实测（<code>getBBox</code>）：箭头墨迹中心与圆心偏了多少像素，0 才算真的居中。</p>
   <div class="icon-grid">
-      <div class="icon-card">
-        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></div>
-        <div class="icon-name">A · 圈里向下箭头</div>
-        <div class="icon-note">最直白：「装进来」的意思。和「刷新」按钮的重载语义不冲突。</div>
+      <div class="icon-card" data-icon="A">
+        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></div>
+        <div class="icon-name">A · 圈里向上箭头</div>
+        <div class="icon-note">最贴「升级」这个说法，也是 VS Code / Slack 那类软件的通行画法。描边 1.4。</div>
         <div class="icon-demo">
-          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></span></div>
+          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span></div>
           <div class="upd-strip" style="margin:8px 0 0">
-            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 5.1v4.1"/><path d="M6.1 7.2 8 9.1l1.9-1.9"/></svg></span>
+            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span>
             <span class="upd-text">Pi 有新版本 <strong>1.5.2 → 1.6.0</strong></span>
             <span class="upd-actions"><button class="ghost-btn small">升级</button></span>
           </div>
         </div>
+        <div class="icon-geo"></div>
       </div>
-      <div class="icon-card">
-        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.2 2.6v2.7h-2.7"/></svg></div>
-        <div class="icon-name">B · 循环箭头</div>
-        <div class="icon-note">「更新」的通用符号。缺点是和刷新、重试长得太像。</div>
+      <div class="icon-card" data-icon="B">
+        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></div>
+        <div class="icon-name">B · 圈里向上箭头（粗一点）</div>
+        <div class="icon-note">同样形状，描边 1.6。小尺寸更醒目，但和圆形描边一起看会显得重。</div>
         <div class="icon-demo">
-          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.2 2.6v2.7h-2.7"/></svg></span></div>
+          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span></div>
           <div class="upd-strip" style="margin:8px 0 0">
-            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13.2 2.6v2.7h-2.7"/></svg></span>
+            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 9.65V6.35"/><path d="M6.35 8 8 6.35 9.65 8"/></svg></span>
             <span class="upd-text">Pi 有新版本 <strong>1.5.2 → 1.6.0</strong></span>
             <span class="upd-actions"><button class="ghost-btn small">升级</button></span>
           </div>
         </div>
+        <div class="icon-geo"></div>
       </div>
-      <div class="icon-card">
-        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.4"/><path d="M6.3 6.5 8 8.2l1.7-1.7"/><path d="M5.7 10.6h4.6"/></svg></div>
-        <div class="icon-name">C · 圈里向下箭头 + 底线</div>
-        <div class="icon-note">带「落到这里」的底线，下载感更强；小尺寸下细节会糊。</div>
+      <div class="icon-card" data-icon="C">
+        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.8V3.4"/><path d="M5.4 6 8 3.4l2.6 2.6"/><path d="M3.6 12.6h8.8"/></svg></div>
+        <div class="icon-name">C · 向上箭头 + 底座</div>
+        <div class="icon-note">没有圆圈，箭头从一条横线上「升起来」。更「提升」的意思，但和工具栏里的上传图标像。</div>
         <div class="icon-demo">
-          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.4"/><path d="M6.3 6.5 8 8.2l1.7-1.7"/><path d="M5.7 10.6h4.6"/></svg></span></div>
+          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.8V3.4"/><path d="M5.4 6 8 3.4l2.6 2.6"/><path d="M3.6 12.6h8.8"/></svg></span></div>
           <div class="upd-strip" style="margin:8px 0 0">
-            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.6v3.4"/><path d="M6.3 6.5 8 8.2l1.7-1.7"/><path d="M5.7 10.6h4.6"/></svg></span>
+            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.8V3.4"/><path d="M5.4 6 8 3.4l2.6 2.6"/><path d="M3.6 12.6h8.8"/></svg></span>
             <span class="upd-text">Pi 有新版本 <strong>1.5.2 → 1.6.0</strong></span>
             <span class="upd-actions"><button class="ghost-btn small">升级</button></span>
           </div>
         </div>
+        <div class="icon-geo"></div>
       </div>
-      <div class="icon-card">
-        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="3.2"/><path d="M8 5.2v3.5"/><path d="M6.3 7 8 8.7 9.7 7"/></svg></div>
-        <div class="icon-name">D · 方框里向下箭头</div>
-        <div class="icon-note">更像「安装包」，比圆圈稳重，但和 app 里的方形图标容易混。</div>
+      <div class="icon-card" data-icon="D">
+        <div class="icon-big" style="color:#c8891a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M5.5 8 8 5.5 10.5 8"/><path d="M5.5 10.5 8 8 10.5 10.5"/></svg></div>
+        <div class="icon-name">D · 圈里两个尖角</div>
+        <div class="icon-note">双层向上尖角，像「往上升」的梯子。辨识度高，但比单箭头啰嗦。</div>
         <div class="icon-demo">
-          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="3.2"/><path d="M8 5.2v3.5"/><path d="M6.3 7 8 8.7 9.7 7"/></svg></span></div>
+          <div class="nav-item" style="width:100%;pointer-events:none"><span class="nav-icon">◇</span>扩展<span class="nav-count">7</span><span class="nav-update"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M5.5 8 8 5.5 10.5 8"/><path d="M5.5 10.5 8 8 10.5 10.5"/></svg></span></div>
           <div class="upd-strip" style="margin:8px 0 0">
-            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="3.2"/><path d="M8 5.2v3.5"/><path d="M6.3 7 8 8.7 9.7 7"/></svg></span>
+            <span class="upd-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.6"/><path d="M5.5 8 8 5.5 10.5 8"/><path d="M5.5 10.5 8 8 10.5 10.5"/></svg></span>
             <span class="upd-text">Pi 有新版本 <strong>1.5.2 → 1.6.0</strong></span>
             <span class="upd-actions"><button class="ghost-btn small">升级</button></span>
           </div>
         </div>
+        <div class="icon-geo"></div>
       </div>
   </div>
-  <p class="mini-note">我倾向 A：小尺寸下最清楚，也不和「刷新 / 重试」打架；B 更像更新，但和我们页面里到处都在用的重载图标重合。</p>
+  <p class="mini-note">我选 A：语义对（升级）、小尺寸干净、圆里的箭头墨迹会按实测对齐到圆心。</p>
 </div>
 
 <div class="block">
@@ -430,6 +437,30 @@
     if (grid) grid.style.transform = 'scale(1.6)';
     if (grid) grid.style.transformOrigin = 'top left';
   }
+  // 每张图标候选卡片底部写一行几何核对：箭头墨迹中心 vs 圆心。
+  document.querySelectorAll('.icon-card').forEach((card) => {
+    const svg = card.querySelector('.icon-big svg');
+    const circle = svg.querySelector('circle');
+    const paths = [...svg.querySelectorAll('path')];
+    const out = card.querySelector('.icon-geo');
+    if (!paths.length || !out) return;
+    let box = paths[0].getBBox();
+    for (const path of paths.slice(1)) {
+      const other = path.getBBox();
+      const x = Math.min(box.x, other.x);
+      const y = Math.min(box.y, other.y);
+      const right = Math.max(box.x + box.width, other.x + other.width);
+      const bottom = Math.max(box.y + box.height, other.y + other.height);
+      box = { x, y, width: right - x, height: bottom - y };
+    }
+    const inkX = box.x + box.width / 2;
+    const inkY = box.y + box.height / 2;
+    const text = circle
+      ? `箭头中心 (${inkX.toFixed(2)}, ${inkY.toFixed(2)}) · 圆心 (8, 8) · 偏差 ${Math.hypot(inkX - 8, inkY - 8).toFixed(2)}px`
+      : `箭头中心 y=${inkY.toFixed(2)}（无圆圈，按画布中心 8 对齐）`;
+    out.textContent = text;
+  });
+
   const size = query.get('fs');
   if (size) {
     const map = { s: 0.9, m: 1, l: 1.12, xl: 1.24 };
