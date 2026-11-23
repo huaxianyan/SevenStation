@@ -2289,6 +2289,8 @@ public sealed class CenterHub
         try
         {
             await live.Session.SendAsync(new JsonObject { ["type"] = "abort" }, TimeSpan.FromSeconds(5));
+            // 成功路径也留一条：出「按了停止没反应」的时候，得能判断 abort 到底发没发到 Pi。
+            Log.Write($"中止 {id}：Pi 已接受，等它收尾");
             return;
         }
         catch (Exception error)

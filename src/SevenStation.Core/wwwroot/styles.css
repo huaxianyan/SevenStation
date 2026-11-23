@@ -1379,7 +1379,12 @@ button { cursor: pointer; }
   transition: opacity .12s ease;
 }
 
-.code-block:hover .code-copy { opacity: 1; }
+/* :hover 只兜底；流式重建之后靠 .is-hover（指针位置记在 app 层）把状态补回来。 */
+.code-block:hover .code-copy,
+.code-block.is-hover .code-copy { opacity: 1; }
+
+/* 流式重建后把 hover 补回的那一帧：不要淡入，直接亮着。 */
+.code-block.is-hover-instant .code-copy { transition: none; }
 
 .dir-picker { width: min(560px, 92vw); }
 

@@ -179,6 +179,8 @@ const app = {
   renderedKey: null,
   // 每个会话各自的草稿：切会话换一份，别把 A 里没发出去的话带到 B。
   drafts: new Map(),
+  /* 附件也按会话存：在 A 里贴的图，切到 B 不能跟着过去。 */
+  attachmentDrafts: new Map(),
   activeCwd: '',
   lastCwd: '',
   pendingCwd: '',
@@ -1032,6 +1034,8 @@ function confirmDelete(conversation) {
     send({ type: 'delete_conversation', id: conversation.id });
     if (app.currentKey === conversation.id) {
       app.currentKey = null;
+      app.attachments = [];
+      renderAttachments();
       app.sessions = app.sessions.filter((item) => item.id !== conversation.id);
       showWorkspace(false);
       renderSessionList();
@@ -2154,6 +2158,64 @@ function patchItem(item) {
  * 正在跑的一轮：内容只增不减，所以可以就地更新。
  * 展开着的那一步也不再整轮重画了：只把详情里的内容换掉，节点和展开状态都留着。
  */
+/* ------------------------------------------------------------------ *
+ * 代码块复制按钮：可见性不靠 CSS :hover 单独撑
+ * 流式输出每来一段就把这段正文的 innerHTML 整个换掉，新节点没有 hover 状态，
+ * 按钮就会一闪一闪。指针位置记在 app 层，重建之后按位置补回 .is-hover。
+ * ------------------------------------------------------------------ */
+
+let pointerPoint = null;
+let pendingTextUpdate = null;
+
+document.addEventListener('mousemove', (event) => {
+  pointerPoint = { x: event.clientX, y: event.clientY };
+  markCodeHover(event.target);
+}, { passive: true });
+
+function markCodeHover(target) {
+  const block = target && target.closest ? target.closest('.code-block') : null;
+  document.querySelectorAll('.code-block.is-hover').forEach((node) => {
+    if (node !== block) node.classList.remove('is-hover');
+  });
+  if (block) block.classList.add('is-hover');
+}
+
+function refreshCodeHover() {
+  if (!pointerPoint || typeof document.elementFromPoint !== 'function') return;
+  const node = document.elementFromPoint(pointerPoint.x, pointerPoint.y);
+  markCodeHover(node);
+
+  // 重建之后指针还在原地，按钮应该「立刻就在」，不要淡入一下再亮（那就是闪烁的残留）。
+  const block = node && node.closest ? node.closest('.code-block') : null;
+  if (block) {
+    block.classList.add('is-hover-instant');
+    requestAnimationFrame(() => block.classList.remove('is-hover-instant'));
+  }
+}
+
+/** 选区是不是落在这个节点里（只有非空选区才算，光标停着不算）。 */
+function selectionInside(node) {
+  const selection = window.getSelection && window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return false;
+  const range = selection.getRangeAt(0);
+  return node.contains(range.startContainer) || node.contains(range.endContainer);
+}
+
+/** 选区离开之后，把刚才攒下的那次正文更新补上。 */
+document.addEventListener('selectionchange', () => {
+  if (!pendingTextUpdate) return;
+  const { node, html } = pendingTextUpdate;
+  if (!node.isConnected) {
+    pendingTextUpdate = null;
+    return;
+  }
+
+  if (selectionInside(node)) return;
+  pendingTextUpdate = null;
+  node.innerHTML = html;
+  refreshCodeHover();
+});
+
 function updateLiveTurn(node, turn) {
   const assistant = node.querySelector('.msg.assistant');
   if (!assistant) return false;
@@ -2173,7 +2235,15 @@ function updateLiveTurn(node, turn) {
     const html = renderMarkdown(last.text);
     // 只有最后那段正文真变了才就地换；别的段变了（压缩后重写历史之类）让它整轮重画去。
     if (target.innerHTML === html) return false;
+    // 用户正在这段正文里选字：先别重画，等他选完再补（重画会把选区清掉）。
+    if (selectionInside(target)) {
+      pendingTextUpdate = { node: target, html };
+      return false;
+    }
+
     target.innerHTML = html;
+    // 节点是新换的，指针还停在原来的位置上：把代码块的 hover 补回去，别让复制按钮闪。
+    refreshCodeHover();
     return true;
   }
 
@@ -4925,6 +4995,9 @@ function rememberDraft() {
   const text = el.input.value;
   if (text.trim()) app.drafts.set(key, text);
   else app.drafts.delete(key);
+
+  if (app.attachments.length) app.attachmentDrafts.set(key, app.attachments.slice());
+  else app.attachmentDrafts.delete(key);
 }
 
 function restoreDraft(key) {
@@ -4934,6 +5007,10 @@ function restoreDraft(key) {
     autoGrow();
     updateSendReady();
   }
+
+  // 附件跟着会话换，谁也不带谁的东西过去。
+  app.attachments = ((key && app.attachmentDrafts.get(key)) || []).slice();
+  renderAttachments();
 }
 
 el.input.addEventListener('keydown', (event) => {
@@ -5168,7 +5245,15 @@ function acceptCompletion() {
 
 /** 停止要跟 Core 说一声才生效，这中间给一条「正在停止」，别让人以为没点上。 */
 function requestStop(session) {
-  if (!session || !session.streaming) return;
+  if (!session) return;
+  // 已经在停了：再点没有意义，也别重复发 abort。
+  if (stopPending && stopPending.key === session.key) return;
+  // 这一轮其实已经结束了：说一句，别让人对着没反应的按钮猜。
+  if (!session.streaming) {
+    toast('这一轮已经结束了');
+    return;
+  }
+
   send({ type: 'abort', key: session.key });
 
   const pending = { key: session.key, handle: statusToast('正在停止') };
@@ -5633,6 +5718,7 @@ function submitPrompt() {
   el.input.value = '';
   // 发出去了就不算草稿，切回来别再冒出来。
   app.drafts.delete(session.key);
+  app.attachmentDrafts.delete(session.key);
   app.attachments = [];
   renderAttachments();
   autoGrow();
@@ -6315,6 +6401,8 @@ function onProcessExit(message) {
   toast('Pi 运行时退出了（退出码 ' + message.code + '），发一句话就会自动重连。' + detail, 'error');
   if (app.currentKey === message.key) {
     app.currentKey = null;
+    app.attachments = [];
+    renderAttachments();
     showWorkspace(false);
     renderHeader();
   }
