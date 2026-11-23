@@ -53,6 +53,12 @@ if (-not $SkipPublish) {
 
 if (-not (Test-Path $publish)) { throw "没有发布输出：$publish" }
 
+# 装进 MSI 的只有 *.dll、*.json、wwwroot/**、Agents/**（见 wxs 的 CorePayload）。
+# 以前漏列过 Agents，结果装好的机器上根本没有界面说明，规则一条都没注入，看着像「模型不听话」。
+foreach ($needed in @('Agents\pi-guidance.md', 'Agents\sevenstation-guard.js')) {
+    if (-not (Test-Path (Join-Path $publish $needed))) { throw "发布输出里缺 $needed（检查 csproj 的 Content 项）" }
+}
+
 # Seven Station Control 跟 Seven Station Core 装在一个包里（DECISIONS D9），这里顺手构建它。
 Push-Location $controlProject
 try {

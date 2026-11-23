@@ -88,6 +88,8 @@
       <Files Include="$(var.PublishDir)\*.dll" />
       <Files Include="$(var.PublishDir)\*.json" />
       <Files Include="$(var.PublishDir)\wwwroot\**" Subdirectory="wwwroot" />
+      <!-- 给 Pi 的界面说明与纪律扩展：少了这两个，注入与路径改写在装好的机器上全都不生效。 -->
+      <Files Include="$(var.PublishDir)\Agents\**" Subdirectory="Agents" />
     </ComponentGroup>
 
     <!-- Seven Station Control：跟 Seven Station Core 装在一起，用来开停服务、看日志、改监听地址（DECISIONS D9）。 -->
