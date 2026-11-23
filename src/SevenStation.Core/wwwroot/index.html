@@ -198,7 +198,14 @@
                   <select class="pill pill-select" id="thinkingSelect" title="思考等级" hidden></select>
                 </div>
                 <div class="composer-actions">
-                  <button class="icon-btn round" id="attachBtn" title="附加图片" aria-label="附加图片"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg></button>
+                  <!-- 上下文比例：只有一圈，具体数字在悬停提示与点击提示里。 -->
+            <button class="icon-btn round ctx-ring" type="button" id="ctxRing" title="上下文用量" aria-label="上下文用量" hidden>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <circle class="ctx-ring-track" cx="10" cy="10" r="7.4" />
+                <circle class="ctx-ring-fill" id="ctxRingFill" cx="10" cy="10" r="7.4" />
+              </svg>
+            </button>
+            <button class="icon-btn round" id="attachBtn" title="附加图片" aria-label="附加图片"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg></button>
                   <button class="send-btn" id="sendBtn" title="发送" aria-label="发送"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3.4"/><path d="M4.2 7.2 8 3.4l3.8 3.8"/></svg></button>
                 </div>
               </div>

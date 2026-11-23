@@ -288,6 +288,8 @@ const el = {
   thinkingSelect: document.getElementById('thinkingSelect'),
   compactBtn: document.getElementById('compactBtn'),
   ctxUsage: document.getElementById('ctxUsage'),
+  ctxRing: document.getElementById('ctxRing'),
+  ctxRingFill: document.getElementById('ctxRingFill'),
   newSessionBtn: document.getElementById('newSessionBtn'),
   restoreSessionBtn: document.getElementById('restoreSessionBtn'),
   emptyNewBtn: document.getElementById('emptyNewBtn'),
@@ -2805,19 +2807,40 @@ function modelLabel(entry) {
   return name.toLowerCase().includes(route.toLowerCase()) ? name : name + ' · ' + route;
 }
 
+/** 上下文的几个数：顶栏小字、输入框旁的圆环、点击提示都用这一份。 */
+function contextNumbers(usage) {
+  const percent = Number(usage.percent).toFixed(1).replace(/\.0$/, '');
+  const used = (usage.tokens / 1000).toFixed(0);
+  const total = Math.round(usage.contextWindow / 1000);
+  return { percent, used, total, text: percent + '% · ' + used + 'k/' + total + 'k' };
+}
+
+/* 圆环的周长：半径 7.4 写在 index.html 的 circle 上，改那边时这里跟着改。 */
+const CTX_RING_LENGTH = 2 * Math.PI * 7.4;
+
 function renderContext() {
   const session = current();
   const usage = session && session.stats && session.stats.contextUsage;
   if (!usage || usage.percent == null) {
     el.ctxUsage.hidden = true;
+    if (el.ctxRing) el.ctxRing.hidden = true;
     return;
   }
+
+  const numbers = contextNumbers(usage);
   el.ctxUsage.hidden = false;
-  const percent = Number(usage.percent).toFixed(1).replace(/\.0$/, '');
-  const used = (usage.tokens / 1000).toFixed(0);
-  const window = Math.round(usage.contextWindow / 1000);
-  el.ctxUsage.textContent = percent + '% · ' + used + 'k/' + window + 'k';
+  el.ctxUsage.textContent = numbers.text;
   el.ctxUsage.title = '上下文用量';
+
+  // 输入框旁那圈：只有比例，数字放提示里。快到上限时换警示色。
+  if (!el.ctxRing || !el.ctxRingFill) return;
+  const fraction = Math.min(1, Math.max(0, Number(usage.percent) / 100));
+  el.ctxRingFill.style.strokeDasharray = CTX_RING_LENGTH.toFixed(2);
+  el.ctxRingFill.style.strokeDashoffset = (CTX_RING_LENGTH * (1 - fraction)).toFixed(2);
+  el.ctxRing.dataset.level = Number(usage.percent) >= 85 ? 'high' : 'normal';
+  el.ctxRing.hidden = false;
+  el.ctxRing.title = '上下文已用 ' + numbers.text;
+  el.ctxRing.setAttribute('aria-label', '上下文已用 ' + numbers.text);
 }
 
 /* 工作中时在输入卡片下面走一条「工作 X 秒 · Enter 排队」。 */
@@ -5725,6 +5748,17 @@ function submitPrompt() {
 }
 
 el.attachBtn.addEventListener('click', () => el.fileInput.click());
+
+// 圆环上的数字只有提示里看得到；手机没有悬停，点一下也要能读出具体数值。
+if (el.ctxRing) {
+  el.ctxRing.addEventListener('click', () => {
+    const session = current();
+    const usage = session && session.stats && session.stats.contextUsage;
+    if (!usage || usage.percent == null) return;
+    const numbers = contextNumbers(usage);
+    toast('上下文已用 ' + numbers.percent + '%：' + numbers.used + 'k / ' + numbers.total + 'k tokens');
+  });
+}
 
 el.fileInput.addEventListener('change', async () => {
   const files = [...el.fileInput.files];
