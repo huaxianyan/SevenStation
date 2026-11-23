@@ -54,6 +54,22 @@ internal static class PiHost
     {
         var arguments = new List<string> { PiLocator.LauncherPath, "--mode", "rpc" };
 
+        // 每轮的界面纪律（中文 / 绝对路径 / Windows 坑）与正文路径改写。
+        // 用 -e 直接指向安装目录，不往用户的 ~/.pi/agent/extensions 里写东西。
+        var guard = Path.Combine(AppContext.BaseDirectory, "Agents", "sevenstation-guard.js");
+        try
+        {
+            if (File.Exists(guard) && PiLocator.SupportsExtensionFlag)
+            {
+                arguments.Add("-e");
+                arguments.Add(guard);
+            }
+        }
+        catch (Exception error)
+        {
+            Log.Write("加载界面纪律扩展失败：" + error.Message, error);
+        }
+
         // 界面把回复里的路径和网址做成可点的，怎么写才能被认出来由这份说明约定。
         // Pi 的 --append-system-prompt 只吃文本，所以这里自己读文件再传内容。
         var guidance = Path.Combine(AppContext.BaseDirectory, "Agents", "pi-guidance.md");

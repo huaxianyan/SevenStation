@@ -31,6 +31,8 @@
     <!-- 从 bin 目录直接启动时 content root 就是 exe 所在目录，页面要跟着复制过去。 -->
     <Content Update="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Agents\pi-guidance.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 每轮注入界面纪律 + 改写相对路径的 Pi 扩展，由 Core 用 -e 加载。 -->
+    <Content Include="Agents\sevenstation-guard.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

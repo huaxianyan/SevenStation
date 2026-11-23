@@ -86,19 +86,31 @@ public static class PiLocator
     /// 这份 Pi 认不认 <c>--append-system-prompt</c>。老版本遇到不认识的参数会直接报错退出，
     /// 所以先问一次 <c>--help</c>；结果缓存，一个进程只问一次。
     /// </summary>
-    public static bool SupportsAppendSystemPrompt { get; } = ProbeAppendSystemPrompt();
+    public static bool SupportsAppendSystemPrompt => HelpText.Value.Contains("--append-system-prompt", StringComparison.Ordinal);
 
-    private static bool ProbeAppendSystemPrompt()
+    /// <summary>认不认 <c>-e/--extension</c>：每轮的界面纪律扩展靠它加载。</summary>
+    public static bool SupportsExtensionFlag => HelpText.Value.Contains("--extension", StringComparison.Ordinal);
+
+    private static readonly Lazy<string> HelpText = new(ProbeHelp);
+
+    /// <summary>跑一次 <c>pi --help</c> 并把原文留住；首次访问时写一条日志，排「规则没生效」先看它。</summary>
+    private static string ProbeHelp()
     {
-        var supported = ProbeSupported();
-        // 这条只写一次（静态属性只算一次），排「规则没生效」的时候先看它。
-        Log.Write(supported
-            ? "给 Pi 的界面说明：会随每个会话注入（--append-system-prompt）"
-            : "给 Pi 的界面说明：这个 Pi 不支持 --append-system-prompt，没有注入");
-        return supported;
+        var text = ReadHelp();
+        if (text.Length == 0)
+        {
+            Log.Write("给 Pi 的界面说明：读不到 pi --help，按不支持处理（说明与扩展都没有注入）");
+            return text;
+        }
+
+        Log.Write("给 Pi 的界面说明：--append-system-prompt "
+            + (text.Contains("--append-system-prompt", StringComparison.Ordinal) ? "支持" : "不支持")
+            + "，-e/--extension "
+            + (text.Contains("--extension", StringComparison.Ordinal) ? "支持" : "不支持"));
+        return text;
     }
 
-    private static bool ProbeSupported()
+    private static string ReadHelp()
     {
         try
         {
@@ -110,15 +122,15 @@ public static class PiLocator
                 CreateNoWindow = true,
                 ArgumentList = { LauncherPath, "--help" },
             });
-            if (process is null) return false;
+            if (process is null) return string.Empty;
 
             var text = process.StandardOutput.ReadToEndAsync();
             process.StandardError.ReadToEnd();
-            return process.WaitForExit(4000) && text.Result.Contains("--append-system-prompt", StringComparison.Ordinal);
+            return process.WaitForExit(4000) ? text.Result : string.Empty;
         }
         catch (Exception)
         {
-            return false;
+            return string.Empty;
         }
     }
 
