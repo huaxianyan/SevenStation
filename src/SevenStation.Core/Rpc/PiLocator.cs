@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using SevenStation.Core.Agents;
+using SevenStation.Shared;
 
 namespace SevenStation.Core.Rpc;
 
@@ -88,6 +89,16 @@ public static class PiLocator
     public static bool SupportsAppendSystemPrompt { get; } = ProbeAppendSystemPrompt();
 
     private static bool ProbeAppendSystemPrompt()
+    {
+        var supported = ProbeSupported();
+        // 这条只写一次（静态属性只算一次），排「规则没生效」的时候先看它。
+        Log.Write(supported
+            ? "给 Pi 的界面说明：会随每个会话注入（--append-system-prompt）"
+            : "给 Pi 的界面说明：这个 Pi 不支持 --append-system-prompt，没有注入");
+        return supported;
+    }
+
+    private static bool ProbeSupported()
     {
         try
         {
