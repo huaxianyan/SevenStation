@@ -291,6 +291,55 @@ async fn pick_folder(app: tauri::AppHandle, initial: Option<String>) -> Option<S
 }
 
 
+/// 用系统的「打开方式」打开：文件交给默认程序，目录开资源管理器，网址开默认浏览器。
+///
+/// 以前这里是 `Command::new("explorer.exe").arg(path)`，有个毛病：新窗口常常**开在后台**。
+/// Windows 的前台锁按「是谁启动了这个进程」算，explorer 那条链不在前台，被它拉起来的程序
+/// 就拿不到前台权限——用户看到的只是任务栏闪一下，像点了没反应。
+/// ShellExecuteW 相当于在资源管理器里双击，前台权限跟着发起调用的这个进程走。
+fn open_via_shell(target: &str) -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr;
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn ShellExecuteW(
+            hwnd: *mut core::ffi::c_void,
+            operation: *const u16,
+            file: *const u16,
+            parameters: *const u16,
+            directory: *const u16,
+            show: i32,
+        ) -> isize;
+    }
+
+    fn wide(value: &str) -> Vec<u16> {
+        OsStr::new(value).encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    // SW_SHOWNORMAL：不要最大化也不要最小化，按程序自己的默认来。
+    const SW_SHOWNORMAL: i32 = 1;
+    let operation = wide("open");
+    let file = wide(target);
+    let result = unsafe {
+        ShellExecuteW(
+            ptr::null_mut(),
+            operation.as_ptr(),
+            file.as_ptr(),
+            ptr::null(),
+            ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+
+    // ShellExecuteW 把 HINSTANCE 当返回值：<= 32 都是错误码（32 是「没有关联程序」）。
+    if result <= 32 {
+        return Err(format!("打不开：{target}（ShellExecute 返回 {result}）"));
+    }
+    Ok(())
+}
+
 /// 打开一个路径：目录在资源管理器里打开，文件用默认程序直接打开。
 ///
 /// 这件事必须由壳来做：Seven Station Core 是 Windows 服务，它 `Process.Start` 出来的
@@ -305,12 +354,8 @@ fn reveal_path(path: String) -> Result<(), String> {
     // 先确认它还在：不然 explorer 会自己弹一个「找不到」的框，不如我们在页面上说清楚。
     fs::metadata(target).map_err(|_| format!("找不到这个路径：{target}"))?;
 
-    // explorer 对目录是打开文件夹，对文件是用关联程序打开。
-    std::process::Command::new("explorer.exe")
-        .arg(target)
-        .spawn()
-        .map_err(|error| error.to_string())?;
-    Ok(())
+    // 目录是打开文件夹，文件是用关联程序打开；前台权限跟着客户端走，窗口不会再藏在后面。
+    open_via_shell(target)
 }
 
 /// 用系统浏览器打开一个地址。只认 http/https，别让页面把壳当成随便起程序的入口。
@@ -321,11 +366,7 @@ fn open_url(url: String) -> Result<(), String> {
         return Err("只支持 http/https 地址".into());
     }
 
-    std::process::Command::new("explorer.exe")
-        .arg(target)
-        .spawn()
-        .map_err(|error| format!("打不开浏览器：{error}"))?;
-    Ok(())
+    open_via_shell(target).map_err(|error| format!("打不开浏览器：{error}"))
 }
 
 /// 在资源管理器里打开文件「所在的位置」，并把文件选中。
