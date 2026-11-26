@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>分支胶囊在窄宽度下怎么收</title>
+<style>
+  :root {
+    --page: #ececee; --panel: #f7f7f9; --card: #fff; --border: #e9e9ee; --border-strong: #dcdce2;
+    --active: #ececef; --text: #1a1a1d; --text-soft: #55555c; --text-dim: #2c2c31; --text-mute: #8a8a92;
+    --text-faint: #a9a9b1; --accent: #1a1a1d; --accent-soft: #ececef; --on-accent: #fff;
+    --green: #189a4a; --danger: #cf3b3b; --warn: #b4761a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 26px 30px 40px; background: var(--page); color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif; font-size: 13.5px;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  .lede { color: var(--text-mute); margin: 0 0 20px; font-size: 12.5px; }
+  .frame { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .frame-head b { font-size: 13px; }
+  .frame-head .meta { color: var(--text-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .frame-head .verdict { font-size: 12px; font-weight: 600; }
+  .verdict.ok { color: var(--green); }
+  .verdict.tight { color: var(--warn); }
+  .verdict.no { color: var(--danger); }
+
+  /* ── 输入区那一行，按真实尺寸写 ───────────────────────────── */
+  .composer { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 11px 13px 9px; }
+  .composer .input-line { height: 30px; color: var(--text-faint); font-size: 13.5px; padding: 3px 2px; }
+  .composer-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .pills { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+  .composer-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+    border: 0; border-radius: 999px; background: var(--panel); color: var(--text-soft);
+    font: inherit; font-size: 12.5px; white-space: nowrap; min-width: 0; flex: 0 1 auto;
+  }
+  .pill svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+  .pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .pill .chev { width: 12px; height: 12px; }
+  .pill .count { color: var(--warn); font-variant-numeric: tabular-nums; flex: none; }
+  .pill .ab { color: var(--text-mute); font-variant-numeric: tabular-nums; flex: none; font-size: 11.5px; }
+  .pill.branch { cursor: pointer; }
+  .pill.thinking { padding: 0 8px; color: var(--text-mute); }
+
+  .icon-btn {
+    width: 28px; height: 28px; border-radius: 50%; border: 0; background: none; color: var(--text-mute);
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .icon-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; }
+  .send {
+    width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent);
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .send svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+  /* 降级档位：由 JS 按实测宽度打类，写在容器上 */
+  .lv2 .pill.branch .label { max-width: 96px; }
+  .lv3 .pill.branch .label { display: none; }
+  .lv3 .pill.branch { padding: 0 8px; }
+  .lv4 .pill.workspace .label { max-width: 84px; }
+  .lv4 .pill.thinking { display: none; }
+
+  table { border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 5px 10px; text-align: left; white-space: nowrap; }
+  th { color: var(--text-mute); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .note { color: var(--text-mute); font-size: 12px; margin: 8px 0 0; line-height: 1.6; }
+  .note b { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<h1>分支胶囊在窄宽度下怎么收</h1>
+<p class="lede">
+  宽度取自你的实际窗口（1536 宽，对话列约 1150）。每一行都是真尺寸：同字体、同字号、同间距，
+  模型胶囊按你截图里的实际写法（带 workbuddy / 路由前缀）。
+</p>
+
+<div id="frames"></div>
+
+<div class="frame">
+  <div class="frame-head"><b>实测结果</b><span class="meta">单位 px，左边距都留够</span></div>
+  <table id="report">
+    <thead><tr><th>容器宽</th><th>采用后需要</th><th>可用</th><th>剩余</th><th>降级到</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <p class="note">
+    <b>降级顺序</b>（只在放不下时才动，越靠后的越晚牺牲）：<br>
+    ① 分支名截断到 96px → ② 分支只剩图标 + 改动数（悬停看全名） → ③ 工作区名截断到 84px、思考等级暂时收起。<br>
+    <b>永远不牺牲</b>：模型名、上下文圆环、附件、发送。模型名决定了这一轮花的是谁的钱，不能看不见。
+  </p>
+</div>
+
+<script>
+  const ROW = 1152; // 你的窗口里对话列的大致内宽
+
+  const cases = [
+    { width: ROW, branch: 'feature/pinyin-editor', note: '你的常态：短分支名' },
+    { width: ROW, branch: 'feature/pinyin-editor-with-a-really-long-name', note: '你的常态：长分支名' },
+    { width: 940, branch: 'feature/pinyin-editor-with-a-really-long-name', note: '窗口缩到约 1300 宽时' },
+    { width: 760, branch: 'feature/pinyin-editor-with-a-really-long-name', note: '窗口缩到约 1120 宽时（或手机横屏）' },
+  ];
+
+  const branchIcon = '<svg viewBox="0 0 16 16"><circle cx="4.6" cy="3.4" r="1.6"/><circle cx="4.6" cy="12.6" r="1.6"/><circle cx="11.4" cy="6.4" r="1.6"/><path d="M4.6 5v6M11.4 8V5.4c0-1.1-.9-2-2-2H6.2"/></svg>';
+  const folderIcon = '<svg viewBox="0 0 16 16"><path d="M2.2 4.2h4.2l1.4 1.6h6V12a.8.8 0 0 1-.8.8H2.2a.8.8 0 0 1-.8-.8V4.2z"/></svg>';
+
+  function rowHtml(branch) {
+    return `
+      <div class="composer-row">
+        <div class="pills">
+          <button class="pill workspace" title="ComebackGooglePinyinInput">${folderIcon}<span class="label">ComebackGooglePinyinInput</span></button>
+          <button class="pill branch" title="${branch} · 2 处改动">${branchIcon}<span class="label">${branch}</span><span class="count">2</span></button>
+          <button class="pill model" title="workbuddy / DeepSeek-V4.1-Flash"><span class="label">workbuddy / DeepSeek-V4.1-Flash</span><svg class="chev" viewBox="0 0 16 16"><path d="M4.2 6.6 8 10.4l3.8-3.8"/></svg></button>
+          <button class="pill thinking" title="思考等级"><span class="label">high</span><svg class="chev" viewBox="0 0 16 16"><path d="M4.2 6.6 8 10.4l3.8-3.8"/></svg></button>
+        </div>
+        <div class="composer-actions">
+          <button class="icon-btn" title="上下文用量"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.4" stroke="#dcdce2" stroke-width="2.6" fill="none"/><circle cx="10" cy="10" r="7.4" stroke="#2c2c31" stroke-width="2.6" stroke-linecap="round" fill="none" stroke-dasharray="46.5" stroke-dashoffset="35" transform="rotate(-90 10 10)"/></svg></button>
+          <button class="icon-btn" title="附加图片"><svg viewBox="0 0 16 16"><path d="M8 3.4v9.2M3.4 8h9.2"/></svg></button>
+          <button class="send" title="发送"><svg viewBox="0 0 16 16"><path d="M8 13V3.4"/><path d="M4.2 7.2 8 3.4l3.8 3.8"/></svg></button>
+        </div>
+      </div>`;
+  }
+
+  /** 整行（含降级类）在不收缩时需要多宽：pills + 间隔 + 右侧按钮。 */
+  function measureRow(composer) {
+    const clone = composer.cloneNode(true);
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.width = 'max-content';
+    clone.style.height = 'auto';
+    document.body.appendChild(clone);
+    const row = clone.querySelector('.composer-row');
+    const pills = Math.ceil(row.querySelector('.pills').getBoundingClientRect().width);
+    const actions = Math.ceil(row.querySelector('.composer-actions').getBoundingClientRect().width);
+    const padding = 26;
+    clone.remove();
+    return { pills, actions, need: pills + 8 + actions, padding };
+  }
+
+  const levels = [
+    { cls: '', name: '不降级' },
+    { cls: 'lv2', name: '①分支名截断到 96px' },
+    { cls: 'lv3', name: '②分支只剩图标 + 改动数' },
+    { cls: 'lv4', name: '③工作区截断到 84px、思考等级收起' },
+  ];
+
+  const frames = document.getElementById('frames');
+  const report = document.querySelector('#report tbody');
+
+  cases.forEach((item, index) => {
+    const frame = document.createElement('div');
+    frame.className = 'frame';
+    frame.innerHTML = `
+      <div class="frame-head">
+        <b>${index + 1}. ${item.note}</b>
+        <span class="meta">容器 ${item.width}px</span>
+      </div>
+      <div class="composer" style="width:${item.width}px">
+        <div class="input-line">问点什么，输入 / 调用命令</div>
+        ${rowHtml(item.branch)}
+      </div>`;
+    frames.appendChild(frame);
+
+    const composer = frame.querySelector('.composer');
+    const available = item.width - 26;
+
+    // 从「不降级」开始一档一档试，第一个放得下的就停。
+    let chosen = levels[0];
+    let measured = measureRow(composer);
+    let rest = available - measured.need;
+    for (const level of levels) {
+      composer.classList.remove('lv2', 'lv3', 'lv4');
+      if (level.cls) composer.classList.add(level.cls);
+      measured = measureRow(composer);
+      rest = available - measured.need;
+      chosen = level;
+      if (rest >= 8) break;
+    }
+
+    const verdict = rest >= 8 ? ['ok', '放得下'] : rest >= 0 ? ['tight', '刚好卡住'] : ['no', '还是差一点'];
+    frame.querySelector('.frame-head').insertAdjacentHTML(
+      'beforeend',
+      `<span class="verdict ${verdict[0]}">${verdict[1]}（余 ${rest}）</span>`,
+    );
+
+    report.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td class="num">${item.width}</td>
+        <td class="num">${measured.need}</td>
+        <td class="num">${available}</td>
+        <td class="num">${rest}</td>
+        <td>${chosen.name}</td>
+      </tr>`);
+  });
+</script>
+</body>
+</html>
