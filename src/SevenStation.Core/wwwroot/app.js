@@ -1193,7 +1193,9 @@ function turnParts(turn) {
   for (const item of turn.items) {
     if (item.kind === 'user') continue;
     for (const block of item.blocks || []) {
-      if (block.type === 'text' && block.text) {
+      // 只有空白（一个空格、一个换行）的正文块不算正文：模型偶尔在思考与工具调用之间
+      // 塞一个空格，画出来是空段落，还会把前后两段工作切成两截。
+      if (block.type === 'text' && String(block.text || '').trim()) {
         segments.push({ kind: 'text', text: block.text });
         texts.push(block.text);
         group = null;

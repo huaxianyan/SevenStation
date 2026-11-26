@@ -94,4 +94,39 @@ const thinkingRows = [...blankNode.querySelectorAll('.work .st-row')].filter((it
 ok(thinkingRows.length === 2, '空白思考不画：' + thinkingRows.length);
 ok(thinkingRows.every((item) => item.textContent.replace('思考', '').trim().length > 0), '每行思考都有摘要');
 
+// 模型常在思考与工具调用之间塞一个空格或换行当正文块。那种空段落不能算正文，
+// 更不能把前后两段工作切成两截（2026-11-23 实际踩到：一轮里冒出六个「工作 2 步」，中间全是空的）。
+const noisy = {
+  items: [
+    { id: 'u9', kind: 'user', text: '继续改', ts: 2000 },
+    {
+      id: 'a9',
+      kind: 'assistant',
+      ts: 2100,
+      blocks: [
+        { id: 'th9a', type: 'thinking', text: '先看文件', ts: 2100 },
+        { type: 'text', text: ' ' },
+        { id: 't9a', type: 'toolCall', name: 'bash', args: { command: 'ls' }, text: 'a.txt', done: true, durationMs: 3, ts: 2200 },
+        { id: 'th9b', type: 'thinking', text: '再改一处', ts: 2300 },
+        // 换行也算空白：这里写成转义，别让它真的换行
+        { type: 'text', text: '\n' },
+        { id: 't9b', type: 'toolCall', name: 'bash', args: { command: 'pwd' }, text: '/x', done: true, durationMs: 3, ts: 2400 },
+        { type: 'text', text: '改好了。' },
+      ],
+    },
+  ],
+};
+const noisyNode = window.__renderTurn(noisy, session, false);
+const noisyAssistant = noisyNode.querySelector('.msg.assistant');
+const noisyKinds = [...noisyAssistant.children].map((child) =>
+  child.classList.contains('work') ? 'work' : child.classList.contains('md') ? 'text' : child.tagName);
+ok(
+  JSON.stringify(noisyKinds) === JSON.stringify(['work', 'text']),
+  '空白正文块不切段：' + noisyKinds.join(','),
+);
+const noisyGroups = noisyAssistant.querySelectorAll('.work');
+ok(noisyGroups.length === 1, '两串工具调用合成一段工作：' + noisyGroups.length);
+ok(noisyGroups[0].querySelectorAll('.st-row').length === 4, '这一段的步骤没丢：' + noisyGroups[0].querySelectorAll('.st-row').length);
+ok(noisyAssistant.querySelectorAll('.md').length === 1, '只画一个正文块：' + noisyAssistant.querySelectorAll('.md').length);
+
 done();
