@@ -2254,6 +2254,91 @@ body.dragging .composer-box {
 }
 
 .pill-select:hover { background-color: var(--active); color: var(--text); }
+/* 分支胶囊：改动数、领先落后都跟在名字后面。 */
+.pill-branch { cursor: pointer; gap: 6px; }
+.pill-branch .pill-label { overflow: hidden; text-overflow: ellipsis; }
+.pill-count { color: var(--warn); font-variant-numeric: tabular-nums; font-size: calc(11.5px * var(--fs-ui)); }
+.pill-ab { color: var(--text-mute); font-variant-numeric: tabular-nums; font-size: calc(11.5px * var(--fs-ui)); }
+.pill-branch[aria-expanded="true"] { background: var(--active); }
+
+/*
+ * 宽度不够时谁先让位：目录先缩（它在上方面包屑和左侧列表里都看得到），分支后缩，
+ * 模型名和思考等级整行最挤也要留着——模型名决定了这一轮花的是谁的钱。
+ * 靠 flex-shrink 的比例 + 各自的 min-width 做，不用 JS 算宽度，窗口拖多快都不会跳。
+ */
+.pill { min-width: 0; overflow: hidden; }
+.pill .pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/*
+ * 名字的下限只在真的挤的时候才生效（.floors）：平时「main」这种短名字不该被撑成一大块。
+ * 目录的下限比分支小——目录在面包屑和左侧列表里都看得到，先让它。
+ */
+.pills.floors .pill-workspace { min-width: calc(88px * var(--fs-ui)); }
+.pills.floors .pill-branch { min-width: calc(120px * var(--fs-ui)); }
+/* 下限要同时压在胶囊上，不然胶囊自己被压窄、把名字硬切一刀（连省略号都没有）。 */
+.pills.floors .pill-workspace .pill-label { min-width: calc(52px * var(--fs-ui)); }
+.pills.floors .pill-branch .pill-label { min-width: calc(92px * var(--fs-ui)); }
+.pill-workspace { flex: 0 6 auto; min-width: calc(34px * var(--fs-ui)); }
+.pill-branch { flex: 0 2 auto; min-width: calc(38px * var(--fs-ui)); }
+/* 模型名是最后一个让位的：整行再挤也要留得下 provider 与模型名的主体。 */
+.pill-model { flex: 0 0 auto; }
+.pill-model-wrap { flex: 0 1 auto; min-width: 0; }
+.pill-select { flex: 0 0 auto; }
+
+/* 极窄：目录名收成图标（路径仍在悬停提示里），分支至少还留着名字。 */
+.pills.tight .pill-workspace { min-width: 0; padding: 0 8px; }
+.pills.tight .pill-workspace .pill-label { display: none; }
+
+.git-panel[hidden] { display: none; }
+
+.git-panel {
+  position: fixed;
+  z-index: 60;
+  width: 300px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 24px 60px rgba(16, 16, 20, .16), 0 2px 6px rgba(16, 16, 20, .06);
+  font-size: calc(12.5px * var(--fs-ui));
+}
+
+.git-head { padding: 7px 9px 4px; color: var(--text-mute); font-size: calc(11.5px * var(--fs-ui)); }
+
+.git-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--text-soft);
+}
+
+.git-row svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.git-row.is-current { color: var(--text); font-weight: 500; }
+.git-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.git-meta { flex: none; color: var(--text-mute); font-variant-numeric: tabular-nums; font-size: calc(11.5px * var(--fs-ui)); }
+
+.git-sep {
+  margin: 5px 0 2px;
+  padding: 7px 9px 4px;
+  border-top: 1px solid var(--border);
+  color: var(--text-mute);
+  font-size: calc(11.5px * var(--fs-ui));
+}
+
+.git-file { display: flex; align-items: center; gap: 8px; padding: 3px 9px; color: var(--text-soft); }
+.git-flag { flex: none; width: 12px; font-weight: 600; color: var(--warn); }
+.git-flag.new { color: var(--green); }
+.git-flag.del { color: var(--danger); }
+.git-flag.move { color: var(--link); }
+.git-flag.conflict { color: var(--danger); }
+.git-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.git-note { padding: 4px 9px 8px; color: var(--text-faint); font-size: calc(11.5px * var(--fs-ui)); line-height: 1.5; }
+
 
 .composer-actions {
   display: flex;

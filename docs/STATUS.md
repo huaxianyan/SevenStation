@@ -1,5 +1,28 @@
 # 进度
 
+## STATUS-085：看得见 git 分支（2026-11-27）
+
+在 Pi 里开分支干活时没地方看当前在哪条分支上，所以在输入框那一行加了一颗只读的分支胶囊。
+
+- Core 侧 `src/SevenStation.Core/Sessions/GitProbe.cs`：三条只读命令（`rev-parse --show-toplevel`、
+  `status --porcelain=v2 --branch`、`for-each-ref refs/heads`），`GIT_OPTIONAL_LOCKS=0`，6 秒超时，
+  同一目录 4 秒内缓存。**不做 checkout / branch / stash**，一个字都不写仓库。
+  不是仓库、没装 git、超时一律当「不是仓库」，不往界面上抛错。
+- 协议：客户端 `{"type":"git_status","key":...}` → Core 回 `{"type":"git_status","key":...,"data":{...}}`。
+  打开会话时问一次（20 秒节流），一轮 `agent_settled` 之后再问一次，点开面板强制刷新。
+- 排障开关：`SevenStation.Core.exe --git-status <目录>` 直接把快照打成 JSON，不起服务。
+- 前端（`app.js` / `index.html` / `styles.css`）：胶囊显示分支名 + 改动数 + ↑领先↓落后，点开一个浮层：
+  当前分支、本地分支（最多 8 条，带「3 天前」）、改动清单（最多 12 条，M/A/D/R/U 上色）、
+  「只看不改」一句。面板里不带「最近三条提交」——用户 2026-11-27 定。
+- 宽度不够时**先降目录、再降分支**：目录在面包屑与左侧列表里都看得到，分支只在这一处有。
+  收缩全交给 flex（目录 `flex-shrink: 6`、分支 `2`、模型与被压时才加下限），挤到模型名头上时目录名直接收成一个图标。
+  模型名是最后让位的（`flex: 0 0 auto`）。
+- 实测（1536 宽窗口）：输入区列宽上限 760px，胶囊可用宽度只有 426px。branch `main` → 全部完整；
+  `feature/pinyin-editor` + 7 处改动 → 全部完整；48 字的长分支名 → 目录变 `SevenSt…`、分支省略、模型完整。
+- 测试 `scripts/ui-tests/git-branch.test.js`（24 条：显示/隐藏、改动数与领先落后、分离头指针、
+  降级顺序、模型不让位、面板内容、路径中省略、相对时间）。
+- 原型与实测在 `design/git-branch-proto.html`（1600 宽三方案）与 `design/git-branch-narrow-proto.html`（窄宽度降级）。
+
 ## STATUS-084：上下文圆环、折叠规则交接（2026-11-23）
 
 - 输入框那一行加了上下文比例圆环（18px，已用部分从 12 点顺时针画，≥85% 换警示色，悬停有提示、点击弹数值）。

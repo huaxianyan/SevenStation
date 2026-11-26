@@ -260,6 +260,12 @@ const el = {
   terminalClose: document.getElementById('terminalClose'),
   workspacePill: document.getElementById('workspacePill'),
   workspacePillText: document.getElementById('workspacePillText'),
+  branchPill: document.getElementById('branchPill'),
+  branchPillText: document.getElementById('branchPillText'),
+  branchPillCount: document.getElementById('branchPillCount'),
+  branchPillAb: document.getElementById('branchPillAb'),
+  gitPanel: document.getElementById('gitPanel'),
+  pills: document.querySelector('.pills'),
   wsSelectText: document.getElementById('wsSelectText'),
   windowEl: document.getElementById('app'),
   main: document.querySelector('.main'),
@@ -2412,6 +2418,8 @@ function renderHeader() {
     el.wsSelectText.textContent = baseName(app.lastCwd || app.activeCwd) || '选择工作区';
     el.modelPill.hidden = true;
     closeModelPanel();
+    el.branchPill.hidden = true;
+    closeGitPanel();
     el.thinkingSelect.hidden = true;
     el.compactBtn.hidden = true;
     el.ctxUsage.hidden = true;
@@ -2436,6 +2444,7 @@ function renderHeader() {
   el.wsSelectText.textContent = baseName(session.cwd) || '选择工作区';
 
   renderModelPill();
+  renderBranchPill();
 
   const capabilities = agentCapabilities();
   const levels = capabilities.thinkingLevels ? (session.levels && session.levels.levels) || [] : [];
@@ -2758,6 +2767,265 @@ function pickModel(entry) {
   closeModelPanel();
 }
 
+/* ------------------------------------------------------------------ *
+ * git 分支：只读展示
+ * 数据来自 Core 的 git_status（rev-parse / status --porcelain=v2 / for-each-ref），
+ * 这里一个字都不写仓库——切分支、建分支都不在这个功能里。
+ * ------------------------------------------------------------------ */
+
+const gitState = { open: false, snapshot: null };
+
+/** 相对时间：面板里分支的「3 天前」自己算，不用 git 的英文相对时间。 */
+function sinceText(seconds) {
+  if (!seconds) return '';
+  const diff = Math.max(0, Math.round(Date.now() / 1000 - Number(seconds)));
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return Math.round(diff / 60) + ' 分钟前';
+  if (diff < 86400) return Math.round(diff / 3600) + ' 小时前';
+  if (diff < 86400 * 30) return Math.round(diff / 86400) + ' 天前';
+  return Math.round(diff / 86400 / 30) + ' 个月前';
+}
+
+/** 改动记号：字母 + 颜色，跟 git status 对得上。 */
+function changeMark(flag) {
+  switch (flag) {
+    case 'new':
+    case 'A': return { letter: 'A', cls: 'new' };
+    case 'D': return { letter: 'D', cls: 'del' };
+    case 'R': return { letter: 'R', cls: 'move' };
+    case 'C': return { letter: 'C', cls: 'move' };
+    case 'U': return { letter: 'U', cls: 'conflict' };
+    default: return { letter: 'M', cls: 'edit' };
+  }
+}
+
+/** 长路径中间省略：留开头两级和文件名，中间用 … 省掉。 */
+function shortPath(path) {
+  const parts = String(path).split(/[\\/]/);
+  if (parts.length <= 3) return path;
+  return parts.slice(0, 2).join('/') + '/…/' + parts[parts.length - 1];
+}
+
+function renderBranchPill() {
+  const session = current();
+  const git = session && session.git;
+  if (!session || !git || !git.repo || !git.branch) {
+    el.branchPill.hidden = true;
+    closeGitPanel();
+    return;
+  }
+
+  el.branchPill.hidden = false;
+  el.branchPillText.textContent = git.branch;
+
+  const changes = Array.isArray(git.files) ? git.files.length : 0;
+  el.branchPillCount.hidden = changes === 0;
+  el.branchPillCount.textContent = String(changes);
+
+  const ahead = Number(git.ahead) || 0;
+  const behind = Number(git.behind) || 0;
+  el.branchPillAb.hidden = ahead === 0 && behind === 0;
+  el.branchPillAb.textContent = (ahead ? '↑' + ahead : '') + (behind ? '↓' + behind : '');
+
+  el.branchPill.title = [
+    git.detached ? '分离头指针' : git.branch,
+    changes ? changes + ' 处改动' : '没有改动',
+    ahead ? '领先 ' + ahead : '',
+    behind ? '落后 ' + behind : '',
+  ].filter(Boolean).join(' · ');
+
+  // 等这一帧的布局算完再量：名字一换宽度就变，同步量会读到旧的尺寸。
+  fitPills();
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitPills);
+}
+
+/**
+ * 宽度不够时按「先降目录，再降分支」的顺序收：
+ * 目录在左侧列表和上方面包屑里都看得到，分支只在这里有，所以目录先让位。
+ */
+const PILL_LEVELS = ['floors', 'tight'];
+
+/**
+ * 收缩交给 CSS：目录让得比分支快，模型名尽量留。这里补两步：
+ * ① 名字被压出省略号 → 加下限（目录停在短名字、分支至少留几个字）；
+ * ② 加了下限还放不下 → 目录名收成一个图标（路径在上方面包屑和左侧列表里都还能看到）。
+ * 量容器没用：flex 会一路缩到放得下，所以看的是名字有没有被压出省略号。
+ */
+function fitPills() {
+  if (!el.pills) return;
+  el.pills.classList.remove(...PILL_LEVELS);
+
+  const cut = (node) => Boolean(node) && node.scrollWidth > node.clientWidth + 1;
+  const squeezed = cut(el.workspacePillText) || cut(el.branchPillText);
+  if (!squeezed && !cut(el.modelPillText)) return;
+
+  el.pills.classList.add('floors');
+  // 加了下限还挤到模型名头上，说明目录该让位了：模型名决定这一轮花谁的钱，不让。
+  if (el.pills.scrollWidth <= el.pills.clientWidth + 1 && !cut(el.modelPillText)) return;
+
+  el.pills.classList.add('tight');
+}
+
+function closeGitPanel() {
+  if (!gitState.open) return;
+  gitState.open = false;
+  el.gitPanel.hidden = true;
+  el.branchPill.setAttribute('aria-expanded', 'false');
+}
+
+function placeGitPanel() {
+  const rect = el.branchPill.getBoundingClientRect();
+  el.gitPanel.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 316)) + 'px';
+  el.gitPanel.style.bottom = Math.round(window.innerHeight - rect.top + 10) + 'px';
+}
+
+function makeGitSep(text) {
+  const sep = document.createElement('div');
+  sep.className = 'git-sep';
+  sep.textContent = text;
+  return sep;
+}
+
+function renderGitPanel() {
+  const git = gitState.snapshot;
+  el.gitPanel.innerHTML = '';
+  if (!git || !git.repo) return;
+
+  const head = document.createElement('div');
+  head.className = 'git-head';
+  head.textContent = git.detached ? '分离头指针' : '当前分支';
+  el.gitPanel.appendChild(head);
+
+  const current = document.createElement('div');
+  current.className = 'git-row is-current';
+  current.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 8.2 6.4 11 12.4 5"/></svg>';
+  const name = document.createElement('span');
+  name.className = 'git-name';
+  name.textContent = git.branch || '(未知)';
+  name.title = git.branch || '';
+  current.appendChild(name);
+  const ahead = Number(git.ahead) || 0;
+  const behind = Number(git.behind) || 0;
+  if (ahead || behind) {
+    const ab = document.createElement('span');
+    ab.className = 'git-meta';
+    ab.textContent = (ahead ? '↑' + ahead : '') + (behind ? '↓' + behind : '');
+    current.appendChild(ab);
+  }
+  el.gitPanel.appendChild(current);
+
+  const others = (git.branches || []).filter((item) => !item.current);
+  if (others.length) {
+    el.gitPanel.appendChild(makeGitSep('本地分支'));
+    others.slice(0, 8).forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'git-row';
+      row.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.6" cy="3.4" r="1.6"/><circle cx="4.6" cy="12.6" r="1.6"/><circle cx="11.4" cy="6.4" r="1.6"/><path d="M4.6 5v6M11.4 8V5.4c0-1.1-.9-2-2-2H6.2"/></svg>';
+      const label = document.createElement('span');
+      label.className = 'git-name';
+      label.textContent = item.name;
+      label.title = item.name;
+      row.appendChild(label);
+      const since = document.createElement('span');
+      since.className = 'git-meta';
+      since.textContent = sinceText(item.at);
+      row.appendChild(since);
+      el.gitPanel.appendChild(row);
+    });
+  }
+
+  const files = Array.isArray(git.files) ? git.files : [];
+  el.gitPanel.appendChild(makeGitSep(files.length ? files.length + ' 处改动' : '没有改动'));
+  if (!files.length) {
+    const empty = document.createElement('div');
+    empty.className = 'git-note';
+    empty.textContent = '工作区是干净的。';
+    el.gitPanel.appendChild(empty);
+  } else {
+    files.slice(0, 12).forEach((file) => {
+      const row = document.createElement('div');
+      row.className = 'git-file';
+      const mark = changeMark(file.flag);
+      const letter = document.createElement('span');
+      letter.className = 'git-flag ' + mark.cls;
+      letter.textContent = mark.letter;
+      const path = document.createElement('span');
+      path.className = 'git-path';
+      path.textContent = shortPath(file.path);
+      path.title = file.path;
+      row.appendChild(letter);
+      row.appendChild(path);
+      el.gitPanel.appendChild(row);
+    });
+    if (files.length > 12) {
+      const more = document.createElement('div');
+      more.className = 'git-note';
+      more.textContent = '还有 ' + (files.length - 12) + ' 个文件没列出来，看 git status。';
+      el.gitPanel.appendChild(more);
+    }
+  }
+
+  const note = document.createElement('div');
+  note.className = 'git-note';
+  note.textContent = '只看不改：切分支、建分支请自己走命令。';
+  el.gitPanel.appendChild(note);
+}
+
+let gitAsked = { key: '', at: 0 };
+
+function requestGitStatus(force) {
+  const session = current();
+  if (!session || !session.cwd) return;
+  // 同一会话 20 秒内只问一次；点开面板时强制刷新（可能刚在终端里提交过）。
+  if (!force && gitAsked.key === session.key && Date.now() - gitAsked.at < 20000) return;
+  gitAsked = { key: session.key, at: Date.now() };
+  send({ type: 'git_status', key: session.key });
+}
+
+function toggleGitPanel() {
+  if (gitState.open) {
+    closeGitPanel();
+    return;
+  }
+  const session = current();
+  const git = session && session.git;
+  if (!git || !git.repo) return;
+
+  gitState.snapshot = git;
+  gitState.open = true;
+  renderGitPanel();
+  if (el.gitPanel.parentElement !== document.body) document.body.appendChild(el.gitPanel);
+  el.gitPanel.hidden = false;
+  el.branchPill.setAttribute('aria-expanded', 'true');
+  placeGitPanel();
+  // 点开时顺手刷新一次：可能刚在终端里提交过。
+  requestGitStatus(true);
+}
+
+el.branchPill.addEventListener('click', (event) => {
+  event.stopPropagation();
+  toggleGitPanel();
+});
+
+document.addEventListener('click', (event) => {
+  if (!gitState.open) return;
+  if (el.gitPanel.contains(event.target)) return;
+  closeGitPanel();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && gitState.open) closeGitPanel();
+}, true);
+
+window.addEventListener('resize', () => {
+  if (gitState.open) placeGitPanel();
+  fitPills();
+});
+
+if (typeof ResizeObserver === 'function' && el.pills) {
+  new ResizeObserver(() => fitPills()).observe(el.pills);
+}
+
 /* 面板挂到 body 上用 fixed 定位，免得被输入区的裁剪和层叠顺序吃掉。 */
 function placeModelPanel() {
   const rect = el.modelPill.getBoundingClientRect();
@@ -2991,6 +3259,7 @@ function openSession(conversation) {
     showWorkspace(true);
     renderThread();
     renderHeader();
+    requestGitStatus();
     renderComposerState();
     renderSessionList();
     return;
@@ -6294,6 +6563,22 @@ function dispatch(message) {
       onModels(message);
       break;
 
+    case 'git_status': {
+      const session = app.byKey.get(message.key);
+      if (session) {
+        session.git = message.data || null;
+        if (message.key === app.currentKey) {
+          renderBranchPill();
+          if (gitState.open) {
+            gitState.snapshot = session.git;
+            renderGitPanel();
+            placeGitPanel();
+          }
+        }
+      }
+      break;
+    }
+
     case 'stats': {
       const session = app.byKey.get(message.key);
       if (session) {
@@ -6597,6 +6882,8 @@ function onEvent(key, event) {
       if (key === app.currentKey) renderComposerState();
       send({ type: 'refresh_stats', key });
       send({ type: 'list_conversations' });
+      // 一轮干完可能改过文件：分支胶囊上的改动数跟着更新。
+      if (key === app.currentKey) requestGitStatus();
       break;
     }
 

@@ -18,6 +18,17 @@ if (args.Contains("--runner"))
     Environment.Exit(SevenStation.Core.Runner.RunnerHost.Run());
 }
 
+// 排障用：把某个目录的 git 快照打成一坨 JSON 就退出，不起服务、不碰配置。
+// 分支胶囊看到的到底是什么，拿这条命令就能对照。
+if (args.Contains("--git-status"))
+{
+    var index = Array.IndexOf(args, "--git-status");
+    var target = index >= 0 && index + 1 < args.Length ? args[index + 1] : Directory.GetCurrentDirectory();
+    var snapshot = await SevenStation.Core.Sessions.GitProbe.SnapshotAsync(target, force: true);
+    Console.WriteLine(snapshot.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    Environment.Exit(0);
+}
+
 var runningAsService = WindowsServiceHelpers.IsWindowsService();
 Log.Initialize(ProductPaths.CoreLogs, "center.log");
 

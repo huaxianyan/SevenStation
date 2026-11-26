@@ -168,6 +168,10 @@ public sealed class CenterHub
                     SendStats(Require(key, "对话标识"), sender);
                     break;
 
+                case "git_status":
+                    await SendGitStatusAsync(Require(key, "对话标识"), sender);
+                    break;
+
                 case "prompt":
                     await PromptAsync(Require(key, "对话标识"), message, sender);
                     break;
@@ -1676,6 +1680,19 @@ public sealed class CenterHub
     }
 
     /// <summary>只发用量，不碰线程内容：收尾后界面会来问一次，不能拿库里的旧副本覆盖流式结果。</summary>
+    /// <summary>工作区的 git 快照。只读：界面拿它画分支胶囊，这里不写仓库。</summary>
+    private async Task SendGitStatusAsync(string id, CenterConnection sender)
+    {
+        var conversation = RequireConversation(id);
+        var snapshot = await GitProbe.SnapshotAsync(conversation.Cwd).ConfigureAwait(false);
+        sender.Send(new JsonObject
+        {
+            ["type"] = "git_status",
+            ["key"] = id,
+            ["data"] = snapshot,
+        });
+    }
+
     private void SendStats(string id, CenterConnection sender)
     {
         var conversation = RequireConversation(id);
