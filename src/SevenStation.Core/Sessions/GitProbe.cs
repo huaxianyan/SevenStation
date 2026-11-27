@@ -222,11 +222,19 @@ public static class GitProbe
         };
         info.Environment["GIT_OPTIONAL_LOCKS"] = "0"; // 连顺手抢锁都不要
 
+        // Seven Station Core 是 Windows 服务，跑在 LocalSystem 下；工作区一般属于登录的那位用户。
+        // git 2.35.2 起遇到「仓库 owner 不是自己」会直接拒绝（dubious ownership），
+        // stdout 是空的、错误只在 stderr 里——不处理的话这里会把每个仓库都当成「不是仓库」。
+        // 这里只读状态（rev-parse / status / for-each-ref），不执行仓库里的任何东西。
+        info.Environment["GIT_CONFIG_COUNT"] = "1";
+        info.Environment["GIT_CONFIG_KEY_0"] = "safe.directory";
+        info.Environment["GIT_CONFIG_VALUE_0"] = "*";
+
         using var process = Process.Start(info);
         if (process is null) return string.Empty;
 
         var output = process.StandardOutput.ReadToEndAsync();
-        process.StandardError.ReadToEnd();
+        var error = process.StandardError.ReadToEndAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(6));
         try
         {
@@ -235,9 +243,18 @@ public static class GitProbe
         catch (OperationCanceledException)
         {
             try { process.Kill(entireProcessTree: true); } catch { /* 已经退了 */ }
+            Log.Write($"git {arguments} 在 {directory} 超过 6 秒没回，先当它不是仓库");
             return string.Empty;
         }
 
-        return output.Result;
+        var stdout = output.Result;
+        // 没输出又把话憋在 stderr 里（dubious ownership、权限、目录不对），
+        // 一律记一行：不然后面只看到「不是仓库」，查不出为什么。
+        if (stdout.Trim().Length == 0 && error.Result.Trim() is { Length: > 0 } reason)
+        {
+            Log.Write($"git {arguments} 在 {directory} 没有输出：{reason.Split('\n')[0]}");
+        }
+
+        return stdout;
     }
 }
