@@ -388,6 +388,31 @@ function relativeTime(ms) {
   return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * 会话列表右上角那一格：在跑就说「工作中」（左边本来就有转圈），
+ * 其余时候是「最后一次落库」到现在有多久。
+ */
+function sessionTimeText(conversation) {
+  if (conversation && conversation.working) return '工作中';
+  return relativeTime(conversation && conversation.updatedAt);
+}
+
+/**
+ * 「12 分钟前」得自己会走：只改文本，不重建列表（重建会打断悬停、把滚动条弹回去）。
+ * 30 秒一次，够用又不费。
+ */
+function refreshSessionTimes() {
+  if (!el.sessionList) return;
+  for (const node of el.sessionList.querySelectorAll('.time[data-at]')) {
+    const item = node.closest('.session-item');
+    // 正在跑的那条显示「工作中」，别拿时间去盖掉它。
+    if (item && item.querySelector('.session-spin')) continue;
+    const next = relativeTime(Number(node.dataset.at) || 0);
+    if (node.textContent !== next) node.textContent = next;
+  }
+}
+
+window.setInterval(refreshSessionTimes, 30000);
 function baseName(path) {
   const parts = String(path || '').split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : path;
@@ -980,7 +1005,8 @@ function renderSessionList() {
         '<span class="session-text">' +
         '<span class="name">' + escapeHtml(conversation.title || '新对话') + '</span>' +
         '<span class="row2"><span class="ws">' + escapeHtml(baseName(conversation.cwd) || '未知目录') + '</span>' +
-        '<span class="time">' + relativeTime(conversation.updatedAt) + '</span></span>' +
+        '<span class="time" data-at="' + (conversation.updatedAt || 0) + '">' +
+          sessionTimeText(conversation) + '</span></span>' +
         (conversation.snippet
           ? '<span class="row3">' + escapeHtml(conversation.snippet) + '</span>'
           : '') +

@@ -32,6 +32,9 @@ public sealed class CenterHub
         /// <summary>上一次为「没动静」记日志的时刻，免得每分钟刷一行。</summary>
         public DateTimeOffset QuietLoggedAt { get; set; } = DateTimeOffset.MinValue;
 
+        /// <summary>上一次问 Pi 要用量的时刻。一轮进行中不能每条消息都问一遍。</summary>
+        public DateTimeOffset StatsAskedAt { get; set; } = DateTimeOffset.MinValue;
+
         /// <summary>
         /// 工作中追加的输入。存在这里而不是直接推给 Pi：
         /// Pi 的队列只有 clear_queue（整队清空），单条改不了也删不掉。
@@ -1926,10 +1929,12 @@ public sealed class CenterHub
                 // 用户的话和模型每段输出一产生就落库：这一轮还没结束，
                 // 中途切到别的对话再切回来，看到的不是空白。
                 AppendLiveMessage(live, record["message"] as JsonObject);
+                AskLiveStats(live);
             }
             else if (name == "tool_execution_end")
             {
                 AppendLiveMessage(live, ToolResultMessage(record));
+                AskLiveStats(live);
             }
 
             Broadcast(new JsonObject
@@ -2036,6 +2041,41 @@ public sealed class CenterHub
         };
     }
 
+    /// <summary>
+    /// 一轮还在跑的时候，用量（tokens / 上下文占比）也要跟着动。
+    /// 每段输出、每次工具调用之后问 Pi 要一次；3 秒节流，问不动就悄悄放过。
+    /// 落库还是等一轮结束（PersistTurnAsync），这里只推给界面看。
+    /// </summary>
+    private void AskLiveStats(Live live)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (now - live.StatsAskedAt < TimeSpan.FromSeconds(3)) return;
+        live.StatsAskedAt = now;
+        _ = RefreshLiveStatsAsync(live);
+    }
+
+    private async Task RefreshLiveStatsAsync(Live live)
+    {
+        try
+        {
+            var stats = await live.Session.SendAsync(
+                new JsonObject { ["type"] = "get_session_stats" },
+                TimeSpan.FromSeconds(5));
+            if (Data(stats) is not { } data) return;
+            Broadcast(new JsonObject
+            {
+                ["type"] = "stats",
+                ["key"] = live.Conversation.Id,
+                ["data"] = data.DeepClone(),
+            });
+        }
+        catch (Exception error)
+        {
+            // 长命令期间 Pi 没空回话是常事：退避 30 秒再试，别每节流一次就记一行日志。
+            live.StatsAskedAt = DateTimeOffset.UtcNow.AddSeconds(30);
+            Log.Write($"对话 {live.Conversation.Id} 刷新用量失败：{error.Message}");
+        }
+    }
     /// <summary>一轮结束后把 Pi 那边的消息取回来，存成 SevenStation.Core 自己的副本。</summary>
     private async Task PersistTurnAsync(Live live)
     {

@@ -1,5 +1,17 @@
 # 进度
 
+## STATUS-091：会话列表的时间与用量跟着动（2026-11-27）
+
+两处「只有一轮结束才更新」的显示：
+
+- **会话列表那一格**：原来固定写 `relativeTime(updatedAt)`，只在收到 `conversations` 时重算，
+  所以工作中一直是开始前的旧时间。现在在跑的那条写「工作中」（左边本来就有转圈），
+  其余每 30 秒只改文本节点（不重建列表，避免打断悬停、把滚动条弹回去）。
+  测试 `scripts/ui-tests/session-time.test.js`（6 条）。
+- **tokens / 上下文占比**：原来只有 `PersistTurnAsync`（一轮结束）时问 Pi `get_session_stats`。
+  现在 `message_end` 与 `tool_execution_end` 之后 `AskLiveStats` 顺手要一次（3 秒节流、5 秒超时），
+  失败退避 30 秒并记日志——长命令期间 Pi 没空回话是常事，不能每条消息都重试刷屏。
+  落库时机不变，仍在一轮结束。
 ## STATUS-090：第一次点开的对话不出分支胶囊（2026-11-27）
 
 `git_status` 只在「这条会话已在 `app.byKey` 里」那条路径问（`openSession` 的缓存分支）。
