@@ -1,5 +1,11 @@
 # 进度
 
+## STATUS-090：第一次点开的对话不出分支胶囊（2026-11-27）
+
+`git_status` 只在「这条会话已在 `app.byKey` 里」那条路径问（`openSession` 的缓存分支）。
+第一次点一条不在缓存里的对话走的是 `open_conversation` → `onSessionState`，那条路径没问，
+所以要点开、切走、再切回来（这次命中缓存）才出现。修法：`onSessionState` 里也 `requestGitStatus()`，
+20 秒节流已经挡住重复请求。测试 `scripts/ui-tests/git-first-open.test.js`（4 条）。版本 0.5.2。
 ## STATUS-089：git 探测在服务账户下失效（2026-11-27，装 0.5.0 后复现）
 
 现象：装上 0.5.0 之后，界面上看不到分支胶囊。

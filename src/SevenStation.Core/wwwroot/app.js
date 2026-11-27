@@ -6684,6 +6684,9 @@ function onSessionState(message) {
   if (!session.models) {
     send({ type: 'list_models', key });
   }
+  // 第一次打开这条对话时它不在缓存里，走的是这条路径——不在这里问，
+  // 分支胶囊要等切走再切回来（命中缓存）才出来。
+  requestGitStatus();
   send({ type: 'list_conversations' });
 
   if (app.pendingPrompt) {
