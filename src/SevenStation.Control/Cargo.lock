@@ -3248,7 +3248,7 @@ dependencies = [
 
 [[package]]
 name = "sevenstation-control"
-version = "0.5.2"
+version = "0.5.4"
 dependencies = [
  "serde",
  "serde_json",

@@ -1,5 +1,26 @@
 # 进度
 
+## STATUS-092：侧栏说没在跑、对话里还在转（2026-11-27）
+
+现象：装完 0.5.3（Core 重启过）之后，某条会话在界面上还显示「进行中」，侧栏那条却不转。
+
+取证：旁听 WebSocket 广播，`conversation_list` 里那条 `working=false`、`status=ready`；
+而它最后一条落库消息停在 Core 重启前那一刻（19:19:23），之后一个小时没有任何新消息。
+`CenterHub` 的 `working` 是 `_live[id].Streaming`——那一轮确实不在了（重启杀掉了子进程）。
+
+根因在前端：`session.streaming` 只在 `agent_start` / `message_start` 时置 true，`agent_settled` 置 false。
+Core 重启时前端收不到 `agent_settled`，这个 true 就一直挂着；而 `openSession` 命中缓存时**不发**
+`open_conversation`（3300 行附近），重连时也只重取 `currentKey` 这一条——切到别的会话看到的就是缓存里的假状态。
+侧栏走 Core 的 `working`，对话走本地的 `streaming`，两处各说各的。
+
+修法：
+
+- `dropStaleStreaming()`：连接刚接上时把本地所有「正在跑」放掉（断开期间 Core 可能重启过，本地不可信）；
+- `syncStreamingFromList()`：收到列表时按 Core 的 `working` 校正，Core 说在跑就认，说没跑时才降级，
+  并且刚发出 8 秒内、或还有没被确认的气泡、或正在流式接收时不打回空闲。
+
+测试 `scripts/ui-tests/streaming-sync.test.js`（7 条）。版本 0.5.4。
+
 ## STATUS-091：会话列表的时间与用量跟着动（2026-11-27）
 
 两处「只有一轮结束才更新」的显示：

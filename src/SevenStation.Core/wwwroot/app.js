@@ -121,6 +121,10 @@ function connect() {
     }
     send({ type: 'list_conversations' });
 
+    // 断线这段里 Core 可能重启过（装包就是），本地挂着的「正在跑」不可信：
+    // 先全放掉，真在跑的那条随后会被 session_state 与列表里的 working 纠正回来。
+    dropStaleStreaming();
+
     // 断线重连后把正在看的这条重新要一遍：不重开会话，线程里那一步会一直停在断开前的样子。
     if (app.currentKey) {
       send({ type: 'open_conversation', id: app.currentKey });
@@ -5877,6 +5881,7 @@ function echoPrompt(session, text, images, payloadImages) {
 
   session.items.push(item);
   session.streaming = true;
+  session.sentAt = Date.now();
 
   if (session === current()) {
     patchItem(item);
@@ -6470,6 +6475,7 @@ function dispatch(message) {
       if (Array.isArray(message.workspaces)) {
         app.recentWorkspaces = message.workspaces;
       }
+      syncStreamingFromList(app.sessions);
       renderSessionList();
       break;
 
@@ -6762,6 +6768,52 @@ function onModels(message) {
   }
 }
 
+
+/*
+ * 侧栏那条「工作中」来自 Core 的 working，对话里那颗停止键来自本地的 session.streaming。
+ * Core 重启（装包就是）会把还在跑的那一轮一起带走，本地却还挂在「正在跑」上——两处就对不上。
+ * 这里以 Core 为准：它说在跑就在跑；它说不跑时要谨慎，刚发出去还没被认领的那条不能打回空闲。
+ */
+function syncStreamingFromList(items) {
+  for (const entry of items) {
+    const session = app.byKey.get(entry.id);
+    if (!session) continue;
+
+    if (entry.working) {
+      if (session.streaming) continue;
+      session.streaming = true;
+      if (entry.id === app.currentKey) renderComposerState();
+      continue;
+    }
+
+    if (!session.streaming) continue;
+    if (session.liveId) continue;
+    if (session.items.some((item) => item.echo && item.state === 'sending')) continue;
+    // 发出到 Core 认领之间有几百毫秒，这段时间里它还会说「没在跑」。
+    if (Date.now() - (session.sentAt || 0) < 8000) continue;
+
+    session.streaming = false;
+    const live = liveItem(session);
+    if (live) live.streaming = false;
+    if (entry.id === app.currentKey) renderComposerState();
+  }
+}
+
+/** 连接刚接上：本地那些「正在跑」都不作数了，等 Core 的话。 */
+function dropStaleStreaming() {
+  let touched = false;
+  for (const session of app.byKey.values()) {
+    if (!session.streaming) continue;
+    session.streaming = false;
+    const live = liveItem(session);
+    if (live) {
+      live.streaming = false;
+      session.liveId = null;
+    }
+    touched = true;
+  }
+  if (touched) renderComposerState();
+}
 
 function onProcessExit(message) {
   if (stopPending && stopPending.key === message.key) {
