@@ -2262,32 +2262,22 @@ body.dragging .composer-box {
 .pill-branch[aria-expanded="true"] { background: var(--active); }
 
 /*
- * 宽度不够时谁先让位：目录先缩（它在上方面包屑和左侧列表里都看得到），分支后缩，
- * 模型名和思考等级整行最挤也要留着——模型名决定了这一轮花的是谁的钱。
- * 靠 flex-shrink 的比例 + 各自的 min-width 做，不用 JS 算宽度，窗口拖多快都不会跳。
+ * 这一行是「模型 → 思考等级 → 分支」：前两个按内容走，只让分支名缩。
+ * 模型名决定了这一轮花的是谁的钱、等级决定了想多久，两个都不该被挤掉。
  */
 .pill { min-width: 0; overflow: hidden; }
 .pill .pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pill-model { flex: 0 0 auto; }
+.pill-model-wrap { flex: 0 0 auto; }
+.pill-select { flex: 0 0 auto; }
+.pill-branch { flex: 0 1 auto; min-width: calc(38px * var(--fs-ui)); }
 
 /*
- * 名字的下限只在真的挤的时候才生效（.floors）：平时「main」这种短名字不该被撑成一大块。
- * 目录的下限比分支小——目录在面包屑和左侧列表里都看得到，先让它。
+ * 分支名的下限只在真的挤的时候才生效（.floors）：平时「main」这种短名字不该被撑成一大块。
+ * 下限要同时压在胶囊和 label 上，只压 label 会让胶囊自己被压窄、把文字硬切一刀（连省略号都没有）。
  */
-.pills.floors .pill-workspace { min-width: calc(88px * var(--fs-ui)); }
-.pills.floors .pill-branch { min-width: calc(120px * var(--fs-ui)); }
-/* 下限要同时压在胶囊上，不然胶囊自己被压窄、把名字硬切一刀（连省略号都没有）。 */
-.pills.floors .pill-workspace .pill-label { min-width: calc(52px * var(--fs-ui)); }
-.pills.floors .pill-branch .pill-label { min-width: calc(92px * var(--fs-ui)); }
-.pill-workspace { flex: 0 6 auto; min-width: calc(34px * var(--fs-ui)); }
-.pill-branch { flex: 0 2 auto; min-width: calc(38px * var(--fs-ui)); }
-/* 模型名是最后一个让位的：整行再挤也要留得下 provider 与模型名的主体。 */
-.pill-model { flex: 0 0 auto; }
-.pill-model-wrap { flex: 0 1 auto; min-width: 0; }
-.pill-select { flex: 0 0 auto; }
+.pills.floors .pill-branch, .pills.floors .pill-branch .pill-label { min-width: calc(120px * var(--fs-ui)); }
 
-/* 极窄：目录名收成图标（路径仍在悬停提示里），分支至少还留着名字。 */
-.pills.tight .pill-workspace { min-width: 0; padding: 0 8px; }
-.pills.tight .pill-workspace .pill-label { display: none; }
 
 .git-panel[hidden] { display: none; }
 

@@ -181,17 +181,6 @@
               <textarea id="input" rows="1" placeholder="问点什么，输入 / 调用命令" spellcheck="false"></textarea>
               <div class="composer-row">
                 <div class="pills">
-                  <button class="pill pill-primary pill-workspace" id="workspacePill">
-                    <svg class="pill-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h5l1.8 2.2h9.2v9.3H3.5z"/></svg>
-                    <span class="pill-label" id="workspacePillText">选择工作区</span>
-                  </button>
-                  <!-- git 分支：只读展示，点开看分支列表与改动。工作区不是仓库时不出现。 -->
-                  <button class="pill pill-primary pill-branch" id="branchPill" title="当前分支" aria-haspopup="dialog" aria-expanded="false" hidden>
-                    <svg class="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.6" cy="3.4" r="1.6"/><circle cx="4.6" cy="12.6" r="1.6"/><circle cx="11.4" cy="6.4" r="1.6"/><path d="M4.6 5v6M11.4 8V5.4c0-1.1-.9-2-2-2H6.2"/></svg>
-                    <span class="pill-label" id="branchPillText"></span>
-                    <span class="pill-count" id="branchPillCount" hidden></span>
-                    <span class="pill-ab" id="branchPillAb" hidden></span>
-                  </button>
                   <div class="pill-model-wrap">
                     <button class="pill pill-primary pill-model" id="modelPill" title="模型"
                             aria-haspopup="dialog" aria-expanded="false" hidden>
@@ -200,10 +189,17 @@
                         class="pill-label" id="modelPillText">默认模型</span>
                       <svg class="pill-chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 6.6 8 10.4l3.8-3.8"/></svg>
                     </button>
-                    <div class="git-panel" id="gitPanel" role="dialog" aria-label="分支与改动" hidden></div>
                     <div class="model-panel" id="modelPanel" role="dialog" aria-label="选择模型" hidden></div>
                   </div>
                   <select class="pill pill-select" id="thinkingSelect" title="思考等级" hidden></select>
+                  <!-- git 分支：只读展示，点开看分支列表与改动。工作区不是仓库时不出现。 -->
+                  <button class="pill pill-primary pill-branch" id="branchPill" title="当前分支" aria-haspopup="dialog" aria-expanded="false" hidden>
+                    <svg class="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.6" cy="3.4" r="1.6"/><circle cx="4.6" cy="12.6" r="1.6"/><circle cx="11.4" cy="6.4" r="1.6"/><path d="M4.6 5v6M11.4 8V5.4c0-1.1-.9-2-2-2H6.2"/></svg>
+                    <span class="pill-label" id="branchPillText"></span>
+                    <span class="pill-count" id="branchPillCount" hidden></span>
+                    <span class="pill-ab" id="branchPillAb" hidden></span>
+                  </button>
+                  <div class="git-panel" id="gitPanel" role="dialog" aria-label="分支与改动" hidden></div>
                 </div>
                 <div class="composer-actions">
                   <!-- 上下文比例：只有一圈，具体数字在悬停提示与点击提示里。 -->

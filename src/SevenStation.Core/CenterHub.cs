@@ -23,6 +23,9 @@ public sealed class CenterHub
         public required PiSession Session { get; init; }
         public bool Streaming { get; set; }
 
+        /// <summary>模型与思考等级已经推给这个子进程了。新起的子进程默认用它自己的配置，不推就对不上。</summary>
+        public bool SettingsApplied { get; set; }
+
         /// <summary>
         /// 工作中追加的输入。存在这里而不是直接推给 Pi：
         /// Pi 的队列只有 clear_queue（整队清空），单条改不了也删不掉。
@@ -1798,6 +1801,7 @@ public sealed class CenterHub
 
         var title = message["title"]?.GetValue<string>();
         var conversation = _store.Create(cwd, title);
+        InheritLastSettings(conversation);
         RememberWorkspace(conversation.Cwd);
         Log.Write($"新对话 {conversation.Id} cwd={cwd}");
         SendState(conversation.Id, sender);
@@ -2095,6 +2099,7 @@ public sealed class CenterHub
     {
         var conversation = RequireConversation(id);
         var live = EnsureLive(conversation);
+        await ApplyStoredSettingsAsync(live);
 
         // 工作中说的话不再直接丢给 Pi：那边只能整队清空，单条改不了。
         // 先存在 Core 里，等 agent_settled 时再依次送出去。
@@ -2364,7 +2369,90 @@ public sealed class CenterHub
     private async Task CaptureSettingsAsync(Live live)
     {
         var state = await live.Session.SendAsync(new JsonObject { ["type"] = "get_state" });
-        _store.SaveTurn(live.Conversation.Id, null, null, Data(state));
+        var data = Data(state);
+        _store.SaveTurn(live.Conversation.Id, null, null, data);
+        RememberLastSettings(data);
+    }
+
+    /// <summary>
+    /// 记下这台机器上「上次用的模型与思考等级」，新建对话时沿用。
+    /// 存 settings 而不是挑最近那条对话：删掉对话后还能记住他上次选的是什么。
+    /// </summary>
+    /// <summary>
+    /// 新对话沿用上次用的模型与思考等级。
+    /// 不这么做的话 Pi 那边用它自己的默认，界面又回落到等级列表第一条（通常是 low），
+    /// 用户看到的就是「每次新建都变回 low」。
+    /// </summary>
+    private void InheritLastSettings(Conversation conversation)
+    {
+        var state = new JsonObject();
+        if (Parse(_store.GetSetting("lastModel")) is JsonObject model)
+        {
+            state["model"] = model.DeepClone();
+        }
+
+        if (_store.GetSetting("lastThinkingLevel") is { Length: > 0 } level)
+        {
+            state["thinkingLevel"] = level;
+        }
+
+        if (state.Count == 0) return;
+        _store.SaveTurn(conversation.Id, null, null, state);
+    }
+
+    /// <summary>
+    /// 新起的 Pi 子进程用它自己的配置（模型、思考等级都是 Pi 的默认），
+    /// 而界面显示的是对话库里记的——不推过去就是「看到 A、实际跑 B」。
+    /// 每个子进程只推一次；推不动（模型被删了之类）只记日志，不拦着用户说话。
+    /// </summary>
+    private async Task ApplyStoredSettingsAsync(Live live)
+    {
+        if (live.SettingsApplied) return;
+        live.SettingsApplied = true;
+
+        var conversation = _store.Get(live.Conversation.Id) ?? live.Conversation;
+        try
+        {
+            if (Parse(conversation.Model) is JsonObject model
+                && model["id"]?.GetValue<string>() is { Length: > 0 } modelId)
+            {
+                var command = new JsonObject
+                {
+                    ["type"] = "set_model",
+                    ["modelId"] = modelId,
+                };
+                if (model["provider"]?.GetValue<string>() is { Length: > 0 } provider)
+                {
+                    command["provider"] = provider;
+                }
+                await live.Session.SendAsync(command);
+            }
+
+            if (!string.IsNullOrEmpty(conversation.ThinkingLevel))
+            {
+                await live.Session.SendAsync(new JsonObject
+                {
+                    ["type"] = "set_thinking_level",
+                    ["level"] = conversation.ThinkingLevel,
+                });
+            }
+        }
+        catch (Exception error)
+        {
+            Log.Write($"按对话设置初始化 Pi 失败（{conversation.Id}）：{error.Message}");
+        }
+    }
+    private void RememberLastSettings(JsonObject? state)
+    {
+        if (state?["model"] is JsonObject model)
+        {
+            _store.SetSetting("lastModel", model.ToJsonString());
+        }
+
+        if (state?["thinkingLevel"]?.GetValue<string>() is { Length: > 0 } level)
+        {
+            _store.SetSetting("lastThinkingLevel", level);
+        }
     }
 
     private async Task SendModelsAsync(string id, CenterConnection sender, bool force = false)

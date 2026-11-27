@@ -258,8 +258,6 @@ const el = {
   terminalClear: document.getElementById('terminalClear'),
   terminalStop: document.getElementById('terminalStop'),
   terminalClose: document.getElementById('terminalClose'),
-  workspacePill: document.getElementById('workspacePill'),
-  workspacePillText: document.getElementById('workspacePillText'),
   branchPill: document.getElementById('branchPill'),
   branchPillText: document.getElementById('branchPillText'),
   branchPillCount: document.getElementById('branchPillCount'),
@@ -1265,7 +1263,8 @@ function workLabel(totalMs, count, live) {
 
 /**
  * 不足一秒不写：那种一轮本来也没什么可说。
- * 一分钟内写秒，再久写「M 分 S 秒」，一小时以上写「H 小时 M 分」。
+ * 一分钟内写秒，再久写「M 分 S 秒」，一小时以上写「H 小时 M 分」，一天以上写「D 天 H 小时」。
+ * 只保留两级：8 小时 30 分 12 秒没人看，卡住的时候「8 小时 30 分」就够了。
  */
 function formatSpent(totalMs) {
   if (!(totalMs >= 1000)) return '';
@@ -1279,9 +1278,15 @@ function formatSpent(totalMs) {
     return seconds ? minutes + ' 分 ' + seconds + ' 秒' : minutes + ' 分';
   }
 
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  return minutes ? hours + ' 小时 ' + minutes + ' 分' : hours + ' 小时';
+  if (total < 86400) {
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    return minutes ? hours + ' 小时 ' + minutes + ' 分' : hours + ' 小时';
+  }
+
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  return hours ? days + ' 天 ' + hours + ' 小时' : days + ' 天';
 }
 
 /** 过程区折叠状态挂在会话上：整轮重画之后要能恢复（节点一换就回弹的老毛病）。 */
@@ -1779,8 +1784,11 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && openStep) closeStepDetail();
 });
 
+/** 单步耗时：一分钟内带一位小数，再久就跟「工作 X」用同一套换算（长命令别写成 612.4 秒）。 */
 function formatDuration(ms) {
-  return ms >= 1000 ? (ms / 1000).toFixed(1) + ' 秒' : Math.round(ms) + ' 毫秒';
+  if (!(ms >= 1000)) return Math.round(ms) + ' 毫秒';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + ' 秒';
+  return formatSpent(ms);
 }
 
 /** 正文里的路径太长时只留尾巴，前面用省略号，别让一行被路径撑满。 */
@@ -2411,10 +2419,7 @@ function renderHeader() {
     el.sessionTitle.textContent = '新对话';
     el.sessionCwd.textContent = '';
     el.crumbSep.hidden = true;
-    // 还没有会话时也能先挑工作区，模型和思考等级得等会话建好才有地方写。
-    el.workspacePill.hidden = false;
-    el.workspacePillText.textContent = baseName(app.lastCwd || app.activeCwd) || '选择工作区';
-    el.workspacePill.title = app.lastCwd || app.activeCwd || '';
+    // 模型和思考等级得等会话建好才有地方写；工作区在左侧列表和上方面包屑里看得到。
     el.wsSelectText.textContent = baseName(app.lastCwd || app.activeCwd) || '选择工作区';
     el.modelPill.hidden = true;
     closeModelPanel();
@@ -2438,9 +2443,6 @@ function renderHeader() {
   el.sessionCwd.textContent = baseName(session.cwd) || '';
   el.sessionCwd.title = session.cwd || '';
   el.crumbSep.hidden = !session.cwd;
-  el.workspacePill.hidden = false;
-  el.workspacePillText.textContent = baseName(session.cwd) || '选择工作区';
-  el.workspacePill.title = session.cwd || '';
   el.wsSelectText.textContent = baseName(session.cwd) || '选择工作区';
 
   renderModelPill();
@@ -2843,27 +2845,14 @@ function renderBranchPill() {
  * 宽度不够时按「先降目录，再降分支」的顺序收：
  * 目录在左侧列表和上方面包屑里都看得到，分支只在这里有，所以目录先让位。
  */
-const PILL_LEVELS = ['floors', 'tight'];
-
 /**
- * 收缩交给 CSS：目录让得比分支快，模型名尽量留。这里补两步：
- * ① 名字被压出省略号 → 加下限（目录停在短名字、分支至少留几个字）；
- * ② 加了下限还放不下 → 目录名收成一个图标（路径在上方面包屑和左侧列表里都还能看到）。
- * 量容器没用：flex 会一路缩到放得下，所以看的是名字有没有被压出省略号。
+ * 这一行只让分支名缩：模型名与思考等级按内容走，不动它们。
+ * 分支名被压出省略号时加下限（至少留几个字），再窄就只剩图标 + 改动数。
  */
 function fitPills() {
   if (!el.pills) return;
-  el.pills.classList.remove(...PILL_LEVELS);
-
   const cut = (node) => Boolean(node) && node.scrollWidth > node.clientWidth + 1;
-  const squeezed = cut(el.workspacePillText) || cut(el.branchPillText);
-  if (!squeezed && !cut(el.modelPillText)) return;
-
-  el.pills.classList.add('floors');
-  // 加了下限还挤到模型名头上，说明目录该让位了：模型名决定这一轮花谁的钱，不让。
-  if (el.pills.scrollWidth <= el.pills.clientWidth + 1 && !cut(el.modelPillText)) return;
-
-  el.pills.classList.add('tight');
+  el.pills.classList.toggle('floors', cut(el.branchPillText));
 }
 
 function closeGitPanel() {
@@ -3138,8 +3127,9 @@ function turnStartedAt(session) {
 function paintWorkHint() {
   const started = turnStartedAt(current()) || workStartedAt;
   if (!started) return;
-  const seconds = Math.max(1, Math.round((Date.now() - started) / 1000));
-  el.hint.textContent = '工作 ' + seconds + ' 秒 · Enter 排队';
+  // 跟过程区那行用同一个换算，长跑的时候显示「8 小时 30 分」而不是「30620 秒」。
+  const spent = formatSpent(Date.now() - started) || '不到 1 秒';
+  el.hint.textContent = '工作 ' + spent + ' · Enter 排队';
 
   // 同一条时间线：下面刷新，上面「工作 N 秒」也跟着走。
   const head = document.querySelector('.work-head[data-since]');
@@ -4047,10 +4037,6 @@ el.filterToggle.addEventListener('click', () => {
   if (!el.filterbar.hidden) el.sessionFilter.focus();
 });
 
-el.workspacePill.addEventListener('click', () => {
-  // 已有对话时工作区是定下来的，只有新对话才能挑。
-  if (!current()) askCwd();
-});
 
 el.settingsBtn.addEventListener('click', () => switchView('settings'));
 el.threadsNav.addEventListener('click', () => switchView('chat'));

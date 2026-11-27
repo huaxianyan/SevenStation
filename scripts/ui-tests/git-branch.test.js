@@ -65,38 +65,32 @@ window.__session(repo({ detached: true, branch: 'a1b2c3d' }));
 ok(text() === 'a1b2c3d', '分离头指针显示短 SHA');
 ok(pill.title.includes('分离头指针'), '悬停提示里说明是分离头指针：' + pill.title);
 
-// 降级顺序：先降目录
+// 这一行的构成：模型 → 思考等级 → 分支，没有工作区胶囊（目录在左侧列表和面包屑里看得到）
 window.__session(repo());
-ok(!pillsEl.classList.contains('lv-ws-icon'), '先假设宽度够，不打降级类');
+const pills = window.__pills();
+const order = [...pills.children]
+  .map((node) => {
+    if (node.classList.contains('pill-model-wrap')) return 'pill-model-wrap';
+    return node.id;
+  })
+  .filter((id) => ['pill-model-wrap', 'thinkingSelect', 'branchPill'].includes(id));
+ok(document.getElementById('workspacePill') === null, '输入区那一行没有工作区胶囊了');
+ok(order[0] === 'pill-model-wrap', '第一个是模型：' + order.join(' / '));
+ok(order[1] === 'thinkingSelect', '第二个是思考等级');
+ok(order[2] === 'branchPill', '第三个才是 git 分支');
 
-const applyFit = (squeezed) => {
-  // jsdom 不做布局，scrollWidth/clientWidth 都是 0；这里直接伪造「有没有被压出省略号」。
-  const stub = (node, over) => {
-    Object.defineProperty(node, 'scrollWidth', { configurable: true, get: () => (over ? 120 : 0) });
-    Object.defineProperty(node, 'clientWidth', { configurable: true, get: () => 100 });
-  };
-  stub(document.getElementById('workspacePillText'), squeezed.includes('workspace'));
-  stub(document.getElementById('branchPillText'), squeezed.includes('branch'));
-  stub(document.getElementById('modelPillText'), squeezed.includes('model'));
-  // 加了下限还放不下：容器报溢出，这时才允许目录收成图标。
-  Object.defineProperty(pillsEl, 'scrollWidth', { configurable: true, get: () => (squeezed.includes('overflow') ? 999 : 0) });
-  Object.defineProperty(pillsEl, 'clientWidth', { configurable: true, get: () => 100 });
+const applyFit = (branchCut) => {
+  // jsdom 不做布局，scrollWidth/clientWidth 都是 0；这里伪造「分支名有没有被压出省略号」。
+  const label = document.getElementById('branchPillText');
+  Object.defineProperty(label, 'scrollWidth', { configurable: true, get: () => (branchCut ? 240 : 100) });
+  Object.defineProperty(label, 'clientWidth', { configurable: true, get: () => 100 });
   window.__fit();
-  return [...pillsEl.classList].filter((cls) => cls !== 'pills');
+  return [...pills.classList].filter((cls) => cls !== 'pills');
 };
 
-ok(applyFit([]).length === 0, '名字没被压：不打任何降级类');
-ok(JSON.stringify(applyFit(['branch'])) === JSON.stringify(['floors']), '分支名被压：加下限，让目录先停在短名字上');
-ok(JSON.stringify(applyFit(['workspace', 'branch'])) === JSON.stringify(['floors']), '两个都被压：同样只是加下限（目录的下限比分支小）');
-ok(
-  JSON.stringify(applyFit(['branch', 'model'])) === JSON.stringify(['floors', 'tight']),
-  '挤到模型名头上：目录名直接收成图标，模型名不让',
-);
-ok(
-  JSON.stringify(applyFit(['workspace', 'branch', 'model', 'overflow'])) === JSON.stringify(['floors', 'tight']),
-  '加了下限还放不下：同样收掉目录名',
-);
-ok(!window.__pills().className.includes('think'), '思考等级永远不参与降级（它不是别处能看到的信息）');
+ok(JSON.stringify(applyFit(false)) === '[]', '分支名没被压：不加下限');
+ok(JSON.stringify(applyFit(true)) === '["floors"]', '分支名被压：给分支加下限（至少留几个字）');
+ok(JSON.stringify(applyFit(false)) === '[]', '宽回来之后下限要撤掉');
 
 // 面板：当前分支、本地分支、改动清单都在
 window.__session(repo());
