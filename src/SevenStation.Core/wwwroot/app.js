@@ -3125,7 +3125,15 @@ function turnStartedAt(session) {
 }
 
 function paintWorkHint() {
-  const started = turnStartedAt(current()) || workStartedAt;
+  const session = current();
+  // 已经按了停止：Pi 收尾要等当前那步（可能是长命令）跑完，这段时间别再往上报秒数，
+  // 否则看着像「点了停止还在跑」。
+  if (session && stopPending && stopPending.key === session.key) {
+    el.hint.textContent = '正在停止 · 等 Pi 收尾';
+    return;
+  }
+
+  const started = turnStartedAt(session) || workStartedAt;
   if (!started) return;
   // 跟过程区那行用同一个换算，长跑的时候显示「8 小时 30 分」而不是「30620 秒」。
   const spent = formatSpent(Date.now() - started) || '不到 1 秒';
