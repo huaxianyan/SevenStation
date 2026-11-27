@@ -175,6 +175,8 @@ const app = {
   filter: '',
   currentKey: null,
   byKey: new Map(),
+  // 每个会话最后一次有动静的时间，用来区分「在干活」和「卡住了」。
+  lastEventAt: new Map(),
   // 上一次画的是哪个会话：换会话要落到底，同一会话重画就别动滚动位置。
   renderedKey: null,
   // 每个会话各自的草稿：切会话换一份，别把 A 里没发出去的话带到 B。
@@ -3102,6 +3104,21 @@ function renderContext() {
   el.ctxRing.setAttribute('aria-label', '上下文已用 ' + numbers.text);
 }
 
+/*
+ * 会话最后一次有动静的时间。Pi 卡在某个工具里时既不发 agent_end 也不退出，
+ * 界面会一直「工作中」，只有秒数在涨——看着像在干活，其实早就没输出了。
+ */
+const QUIET_AFTER_MS = 3 * 60 * 1000;   // 3 分钟没动静：说一句「没动静」
+const STUCK_AFTER_MS = 10 * 60 * 1000;  // 10 分钟没动静：明说可能卡住了
+
+function touchSession(key) {
+  app.lastEventAt.set(key, Date.now());
+}
+
+function quietFor(session) {
+  const since = session && app.lastEventAt.get(session.key);
+  return since ? Date.now() - since : 0;
+}
 /* 工作中时在输入卡片下面走一条「工作 X 秒 · Enter 排队」。 */
 let workTicker = null;
 let workStartedAt = 0;
@@ -3137,6 +3154,16 @@ function paintWorkHint() {
   if (!started) return;
   // 跟过程区那行用同一个换算，长跑的时候显示「8 小时 30 分」而不是「30620 秒」。
   const spent = formatSpent(Date.now() - started) || '不到 1 秒';
+
+  // Pi 一声不吭的时候别假装在干活：光看「工作 8 小时」根本分不清是在跑还是卡住了。
+  const quiet = quietFor(session);
+  if (quiet >= QUIET_AFTER_MS) {
+    const idle = formatSpent(quiet);
+    const tail = quiet >= STUCK_AFTER_MS ? '，可能卡住了' : '';
+    el.hint.textContent = '工作 ' + spent + ' · ' + idle + '没动静' + tail;
+    return;
+  }
+
   el.hint.textContent = '工作 ' + spent + ' · Enter 排队';
 
   // 同一条时间线：下面刷新，上面「工作 N 秒」也跟着走。
@@ -6317,6 +6344,9 @@ async function addImageFiles(files) {
 let pendingCwd = '';
 
 function dispatch(message) {
+  // 每个带会话标识的消息都算「有动静」：界面靠它区分「在干活」和「卡住了」。
+  if (typeof message.key === 'string' && message.key) touchSession(message.key);
+
   switch (message.type) {
     case 'hello':
       if (message.center) {

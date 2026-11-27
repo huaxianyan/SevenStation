@@ -26,6 +26,12 @@ public sealed class CenterHub
         /// <summary>模型与思考等级已经推给这个子进程了。新起的子进程默认用它自己的配置，不推就对不上。</summary>
         public bool SettingsApplied { get; set; }
 
+        /// <summary>最后一次收到 Pi 事件的时刻。Pi 卡在工具里时它一直不走，界面只能看秒数。</summary>
+        public DateTimeOffset LastEventAt { get; set; } = DateTimeOffset.UtcNow;
+
+        /// <summary>上一次为「没动静」记日志的时刻，免得每分钟刷一行。</summary>
+        public DateTimeOffset QuietLoggedAt { get; set; } = DateTimeOffset.MinValue;
+
         /// <summary>
         /// 工作中追加的输入。存在这里而不是直接推给 Pi：
         /// Pi 的队列只有 clear_queue（整队清空），单条改不了也删不掉。
@@ -56,6 +62,9 @@ public sealed class CenterHub
     /// <summary>演示开关用：记录第几次发送，单数失败、双数放行。</summary>
     private int _demoAttempts;
 
+    /// <summary>每分钟看一眼在跑的会话多久没动静了。</summary>
+    private Timer? _quietTimer;
+
     /// <summary>模型缓存的保鲜期：超过就从 Pi 重新取一次。</summary>
     private const long ModelsTtlMs = 24 * 60 * 60 * 1000;
     private readonly Dictionary<string, TerminalSession> _terminals = new();
@@ -70,6 +79,12 @@ public sealed class CenterHub
         _store = store;
         ListenUrl = listenUrl;
         _updates = new PiUpdates(() => CoreSettings.Current.PiHome);
+
+        _quietTimer = new Timer(_ =>
+        {
+            try { WatchQuietSessions(); }
+            catch (Exception error) { Log.Write($"检查静默会话失败：{error.Message}"); }
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
 
     /// <summary>Seven Station Core 对外报的地址，界面拿去给人看，方便照着连别的设备。</summary>
@@ -1872,6 +1887,7 @@ public sealed class CenterHub
 
         session.RecordReceived += record =>
         {
+            live.LastEventAt = DateTimeOffset.UtcNow;
             var name = record["type"]?.GetValue<string>();
             if (name == "agent_start")
             {
@@ -2533,8 +2549,36 @@ public sealed class CenterHub
         live.Session.SendNoReply(response);
     }
 
+    /// <summary>
+    /// 每 60 秒看一眼：在跑的会话如果一直收不到 Pi 的事件，就把「多久没动静」写进日志。
+    /// 只记不改状态——Pi 可能真的卡在一个长命令里，替他判死会把消息丢在半路；
+    /// 界面那边会把这个时长显示出来，用户自己能看出是卡住了。
+    /// </summary>
+    private void WatchQuietSessions()
+    {
+        var now = DateTimeOffset.UtcNow;
+        List<Live> running;
+        lock (_gate)
+        {
+            running = _live.Values.Where(live => live.Streaming).ToList();
+        }
+
+        foreach (var live in running)
+        {
+            var quiet = now - live.LastEventAt;
+            if (quiet < TimeSpan.FromMinutes(5)) continue;
+            if (now - live.QuietLoggedAt < TimeSpan.FromMinutes(10)) continue;
+
+            live.QuietLoggedAt = now;
+            Log.Write($"对话 {live.Conversation.Id} 已经 {Math.Round(quiet.TotalMinutes)} 分钟没收到 Pi 的事件（streaming=true）");
+        }
+    }
+
     public async Task ShutdownAsync()
     {
+        _quietTimer?.Dispose();
+        _quietTimer = null;
+
         // 先断开所有客户端：宿主关闭要等连接收尾，客户端还挂着进程就退不出去，
         // 服务会停在「停止中」，Control 的重启那一步就等到超时（以前就是这么卡住的）。
         CenterConnection[] clients;
