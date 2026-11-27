@@ -125,13 +125,15 @@
 
           <aside class="files" id="filePanel" hidden>
             <div class="files-head">
-              <button class="icon-btn small" id="filesUp" title="上一层" aria-label="上一层">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9"/><path d="M7.6 3.6 3.2 8l4.4 4.4"/></svg>
-              </button>
+              <span class="files-nav">
+                <button class="icon-btn small" id="filesClose" title="关闭" aria-label="关闭">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                </button>
+                <button class="icon-btn small" id="filesUp" title="上一级" aria-label="上一级">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12.6V3.8"/><path d="M4 7.8 8 3.8l4 4"/></svg>
+                </button>
+              </span>
               <span class="files-path" id="filesPath"></span>
-              <button class="icon-btn small" id="filesClose" title="关闭" aria-label="关闭">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
-              </button>
             </div>
             <div class="files-body" id="filesBody"></div>
           </aside>

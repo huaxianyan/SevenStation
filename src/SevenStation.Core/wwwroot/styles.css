@@ -859,6 +859,9 @@ button { cursor: pointer; }
 }
 
 .icon-btn:hover { background: var(--accent-soft); color: var(--text); }
+/* 向上那颗到了最上层就没地方可去：看着就不该能点（Files 面板头部）。 */
+.icon-btn[disabled] { opacity: .3; cursor: default; }
+.icon-btn[disabled]:hover { background: transparent; color: var(--text-mute); }
 .icon-btn.small { width: 22px; height: 22px; border-radius: 6px; }
 .icon-btn.small svg { width: 13px; height: 13px; }
 .icon-btn.round { width: 28px; height: 28px; border-radius: 50%; font-size: calc(15px * var(--fs-ui)); }
@@ -1983,12 +1986,22 @@ body.dragging .composer-box {
 .files-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 9px 10px;
   border-bottom: 1px solid var(--border);
 }
 
+/* 关闭与上一级贴成一组摆左边：两头各一个按钮时，手滑会把「上一层」当成关闭。 */
+.files-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
 .files-path {
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
   font-family: var(--mono);
@@ -1996,8 +2009,28 @@ body.dragging .composer-box {
   color: var(--text-soft);
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* 路径本身也能点：点哪一段就回到那一级（跟资源管理器地址栏一样）。 */
+.files-crumb {
+  flex: 0 1 auto;
+  /* 长路径时前面的段会被压，给个下限：只留「ap…」这种两三个字比「a…」有用。 */
+  min-width: calc(30px * var(--fs-ui));
+  padding: 1px 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.files-crumb:hover { background: var(--active); color: var(--text); }
+.files-crumb.sep { flex: 0 0 auto; min-width: 0; padding: 0; color: var(--text-mute); }
+/* 当前这一级不参与压缩：挤的时候先挤前面的。 */
+.files-crumb.current { flex: 0 0 auto; max-width: 100%; color: var(--text); font-weight: 600; }
 
 .files-body {
   flex: 1;

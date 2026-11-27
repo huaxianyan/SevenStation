@@ -1652,8 +1652,7 @@ function openPathInPanel(targetPath) {
 
   el.filePanel.hidden = false;
   document.querySelector('.main').classList.add('files-open');
-  el.filesPath.textContent = '/' + targetPath;
-  el.filesPath.title = '/' + targetPath;
+  paintFilesPath(targetPath);
   el.filesBody.innerHTML = '<div class="files-note">读取中…</div>';
   send({ type: 'read_file', key: session.key, path: targetPath });
 }
@@ -5733,11 +5732,62 @@ function openFiles(path) {
 
   el.filePanel.hidden = false;
   document.querySelector('.main').classList.add('files-open');
-  el.filesPath.textContent = '/' + path;
-  el.filesPath.title = '/' + path;
+  paintFilesPath(path);
   el.filesBody.innerHTML = '<div class="files-note">读取中…</div>';
   session.filesPath = path;
   send({ type: 'list_dir', key: session.key, path });
+}
+
+/*
+ * 面板头部那行路径：按「/」分成一段段，点哪段就回到哪一级（跟资源管理器地址栏一样）。
+ * 向上那颗只管退一级；已经在最上层时它没地方可去，灰掉等着。
+ */
+let filesViewPath = '';
+
+function paintFilesPath(path) {
+  filesViewPath = String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  el.filesPath.textContent = '';
+  el.filesPath.title = '/' + filesViewPath;
+
+  const root = document.createElement('button');
+  root.type = 'button';
+  root.className = 'files-crumb' + (filesViewPath ? '' : ' current');
+  root.textContent = '/';
+  root.title = '工作区根目录';
+  root.addEventListener('click', () => openFiles(''));
+  el.filesPath.append(root);
+
+  const parts = filesViewPath.split('/').filter(Boolean);
+  let walked = '';
+  parts.forEach((part, index) => {
+    walked = walked ? walked + '/' + part : part;
+
+    // 根那颗本身就是「/」，第一段前面不再补分隔符，不然会显示成「/ / src」。
+    if (index > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'files-crumb sep';
+      sep.textContent = '/';
+      el.filesPath.append(sep);
+    }
+
+    const crumb = document.createElement('button');
+    crumb.type = 'button';
+    crumb.className = 'files-crumb' + (index === parts.length - 1 ? ' current' : '');
+    crumb.textContent = part;
+    crumb.title = '/' + walked;
+    const target = walked;
+    crumb.addEventListener('click', () => openFiles(target));
+    el.filesPath.append(crumb);
+  });
+
+  syncFilesUp();
+}
+
+function syncFilesUp() {
+  const atRoot = filesViewPath.split('/').filter(Boolean).length === 0;
+  el.filesUp.disabled = atRoot;
+  el.filesUp.title = atRoot ? '已经在最上层' : '上一级';
+  el.filesUp.setAttribute('aria-label', el.filesUp.title);
 }
 
 function formatSize(bytes) {
@@ -5776,7 +5826,7 @@ function renderListing(message) {
 
       const session = current();
       if (!session) return;
-      el.filesPath.textContent = '/' + item.path;
+      paintFilesPath(item.path);
       el.filesBody.innerHTML = '<div class="files-note">读取中…</div>';
       send({ type: 'read_file', key: session.key, path: item.path });
     });
@@ -5823,7 +5873,8 @@ function closeFiles() {
 el.filesUp.addEventListener('click', () => {
   const session = current();
   if (!session) return;
-  const parts = (session.filesPath || '').split('/').filter(Boolean);
+  const parts = filesViewPath.split('/').filter(Boolean);
+  if (!parts.length) return;
   parts.pop();
   openFiles(parts.join('/'));
 });
