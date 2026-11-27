@@ -4619,8 +4619,63 @@ el.updLater.addEventListener('click', () => {
 el.updGo.addEventListener('click', () => requestUpgrade());
 
 function requestUpgrade() {
+  const running = (app.sessions || []).filter((item) => item.working);
+  if (running.length > 0) {
+    confirmUpgradeRunning(running);
+    return;
+  }
+
+  startUpgrade(false);
+}
+
+function startUpgrade(stopRunning) {
   setUpgradeBusy(true);
-  send({ type: 'upgrade_pi' });
+  send(stopRunning ? { type: 'upgrade_pi', stopRunning: true } : { type: 'upgrade_pi' });
+}
+
+/*
+ * 有对话在干活时点升级：先说清楚这一轮会被打断，再问要不要现在升。
+ * 不弹浏览器那个 confirm——它在壳里又丑又挡，这里用同一套 modal。
+ */
+function confirmUpgradeRunning(running) {
+  closeModal();
+  const card = document.createElement('div');
+  card.className = 'modal';
+
+  const title = document.createElement('h3');
+  title.textContent = '有对话正在跑';
+  card.appendChild(title);
+
+  const names = running.slice(0, 2).map((item) => '「' + (item.title || '未命名对话') + '」').join('、');
+  const head = running.length > 2 ? `${names}等 ${running.length} 个对话` : names;
+  const note = document.createElement('div');
+  note.className = 'modal-message';
+  note.textContent =
+    head +
+    '正在工作。升级会先让它们停下（这一轮的回答会中断，已经输出的部分留着），换完版本之后发一句话就接着聊。';
+  card.appendChild(note);
+
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+
+  const cancel = document.createElement('button');
+  cancel.className = 'ghost-btn';
+  cancel.textContent = '等它跑完';
+  cancel.addEventListener('click', closeModal);
+
+  const go = document.createElement('button');
+  go.className = 'primary-btn';
+  go.textContent = '停下并升级';
+  go.addEventListener('click', () => {
+    closeModal();
+    startUpgrade(true);
+  });
+
+  actions.append(cancel, go);
+  card.appendChild(actions);
+  el.modal.innerHTML = '';
+  el.modal.appendChild(card);
+  el.modal.hidden = false;
 }
 
 /** 升级期间把三处入口都按住：一次只能跑一个，重复点没有意义。 */

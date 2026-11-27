@@ -215,6 +215,23 @@ public static class PiLocator
         return $"node={ResolveNode()}; launcher={LauncherPath}";
     }
 
+    /// <summary>
+    /// 当前生效的 Pi 版本（<c>install\current-version</c> 的内容）。npm 那种装法没有这个文件，
+    /// 读不到就返回空串——调用方据此跳过「版本对不上就重起」的检查。
+    /// </summary>
+    public static string CurrentVersion()
+    {
+        try
+        {
+            var file = Path.Combine(AgentDirectory, "install", "current-version");
+            return File.Exists(file) ? File.ReadAllText(file).Trim() : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     public static bool TryStartProbe(out string detail)
     {
         try

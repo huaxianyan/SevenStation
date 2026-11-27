@@ -23,6 +23,9 @@ public sealed class CenterHub
         public required PiSession Session { get; init; }
         public bool Streaming { get; set; }
 
+        /// <summary>这个子进程起的时候，Pi 是哪个版本。升级只改旁边那个指针，进程里还是老代码。</summary>
+        public string PiVersion { get; set; } = string.Empty;
+
         /// <summary>模型与思考等级已经推给这个子进程了。新起的子进程默认用它自己的配置，不推就对不上。</summary>
         public bool SettingsApplied { get; set; }
 
@@ -258,7 +261,7 @@ public sealed class CenterHub
                     break;
 
                 case "upgrade_pi":
-                    _ = UpgradePiAsync();
+                    _ = UpgradePiAsync(message["stopRunning"]?.GetValue<bool>() ?? false);
                     break;
 
                 case "check_updates":
@@ -1071,10 +1074,11 @@ public sealed class CenterHub
     }
 
     /// <summary>
-    /// 升级：Pi 自己先升，再升扩展。一次只跑一个；有对话正在跑就等着——
-    /// 升级会把旧版本目录收拾掉，正在用的进程正好指着那边。
+    /// 升级：Pi 自己先升，再升扩展。一次只跑一个。
+    /// 有对话正在跑时要用户点头（<paramref name="stopRunning"/>），点头了就先把它们停下：
+    /// 升级会把更老的版本目录删掉，正在用的进程还指着那边。
     /// </summary>
-    private async Task UpgradePiAsync()
+    private async Task UpgradePiAsync(bool stopRunning)
     {
         if (_upgrader.Busy)
         {
@@ -1082,10 +1086,23 @@ public sealed class CenterHub
             return;
         }
 
-        if (_live.Values.Any(state => state.Streaming))
+        var running = _live.Values.Where(state => state.Streaming).ToList();
+        if (running.Count > 0)
         {
-            Broadcast(JobFailed("现在有对话正在跑，等它结束再升级"));
-            return;
+            if (!stopRunning)
+            {
+                // 界面那边先问过用户了；这里只是兜底，别让人以为「点了没反应」。
+                Broadcast(JobFailed("现在有对话正在跑。要马上升级就先停下它们，或者等这一轮结束。"));
+                return;
+            }
+
+            Broadcast(new JsonObject
+            {
+                ["type"] = "update_job",
+                ["state"] = "running",
+                ["text"] = $"先把 {running.Count} 个正在跑的对话停下…",
+            });
+            await StopAllForUpgradeAsync(running).ConfigureAwait(false);
         }
 
         // 还没查过就现查一次：点得比第一轮检查还早的时候，不能让「没有要升级的东西」糊弄过去。
@@ -1887,7 +1904,12 @@ public sealed class CenterHub
         }
 
         var session = PiSession.Start(conversation.Cwd, resume);
-        var live = new Live { Conversation = conversation, Session = session };
+        var live = new Live
+        {
+            Conversation = conversation,
+            Session = session,
+            PiVersion = PiLocator.CurrentVersion(),
+        };
         Log.Write($"对话 {conversation.Id} 起子进程 cwd={conversation.Cwd} resume={resume ?? "（新建）"}");
 
         session.RecordReceived += record =>
@@ -2153,10 +2175,44 @@ public sealed class CenterHub
         return null;
     }
 
+    /// <summary>
+    /// 升级之后，老对话的子进程还指着旧版本目录：Pi 的升级只改 <c>current-version</c> 这个指针，
+    /// 已经起来的进程里还是老代码。发话前对一眼，不一致就重起一个——Pi 那边 resume 的是同一个
+    /// 会话文件，历史不丢；而且只在空闲时走这条路，不会把一轮半路掐断。
+    /// </summary>
+    private async Task<Live> RollForwardPiVersionAsync(Live live)
+    {
+        var current = PiLocator.CurrentVersion();
+        if (string.IsNullOrEmpty(current)
+            || string.IsNullOrEmpty(live.PiVersion)
+            || live.PiVersion == current)
+        {
+            return live;
+        }
+
+        Log.Write($"对话 {live.Conversation.Id} 的 Pi 还停在 {live.PiVersion}，换成 {current} 重起");
+        lock (_gate)
+        {
+            _live.Remove(live.Conversation.Id);
+        }
+
+        try
+        {
+            await live.Session.DisposeAsync();
+        }
+        catch
+        {
+            // 已经退了。
+        }
+
+        return EnsureLive(live.Conversation);
+    }
+
     private async Task PromptAsync(string id, JsonObject message, CenterConnection sender)
     {
         var conversation = RequireConversation(id);
         var live = EnsureLive(conversation);
+        if (!live.Streaming) live = await RollForwardPiVersionAsync(live);
         await ApplyStoredSettingsAsync(live);
 
         // 工作中说的话不再直接丢给 Pi：那边只能整队清空，单条改不了。
@@ -2361,6 +2417,50 @@ public sealed class CenterHub
     /// 中止当前这一轮。Pi 正常会秒回；它要是不理人，别跟着 120 秒的通用超时干等——
     /// 把子进程收掉，这一轮就算结束了，界面也能从「运行中」里出来。
     /// </summary>
+    /// <summary>
+    /// 升级前把在跑的那些收掉：先发 abort 让 Pi 自己收尾（这一轮的输出会落库），
+    /// 十几秒还不理人就收子进程——升级要等它，不能无限等下去。
+    /// </summary>
+    private async Task StopAllForUpgradeAsync(List<Live> running)
+    {
+        foreach (var live in running)
+        {
+            live.StopRequested = true;
+            try
+            {
+                await live.Session.SendAsync(new JsonObject { ["type"] = "abort" }, TimeSpan.FromSeconds(5));
+            }
+            catch (Exception error)
+            {
+                Log.Write($"升级前中止 {live.Conversation.Id} 没成功：{error.Message}");
+            }
+        }
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (DateTimeOffset.UtcNow < deadline && running.Any(live => live.Streaming))
+        {
+            await Task.Delay(300).ConfigureAwait(false);
+        }
+
+        foreach (var live in running.Where(live => live.Streaming).ToList())
+        {
+            Log.Write($"升级前 {live.Conversation.Id} 15 秒内没收尾，收掉子进程");
+            live.StopRequested = false;
+            try
+            {
+                await live.Session.DisposeAsync();
+            }
+            catch
+            {
+                // 已经退了。
+            }
+
+            SetStreaming(live, false);
+        }
+
+        Log.Write($"升级前停下了 {running.Count} 个正在跑的对话");
+    }
+
     private async Task AbortAsync(string id, CenterConnection sender)
     {
         var live = EnsureLive(RequireConversation(id));

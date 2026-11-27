@@ -1,5 +1,31 @@
 # 进度
 
+## STATUS-095：升级完 Pi，老对话也能用上新版本（2026-11-28）
+
+现象（用户问的）：Pi 升到 1.7.0，界面提示「新开的对话就用这个版本」，那当前的对话是不是白等了。
+
+查证：`install\current-version` 已经写成 1.7.0，但三个 Pi 子进程的命令行都还写着
+`releases\1.6.1\...`——进程里加载的代码不跟着指针变。顺带确认了 Pi 的升级**不需要**退出进程：
+`dist/package-manager-cli.js` 的 `pruneManagedReleases` 刻意保留「当前版本 + 正在跑升级的那个版本」，
+注释写明是给还开着的会话用的，删不掉的还 `catch` 掉。
+
+两件事：
+
+- **懒切换**：`Live.PiVersion` 记下这个子进程起的时候 Pi 是哪个版本（`PiLocator.CurrentVersion()`
+  读 `install\current-version`，npm 那种装法读不到就返回空串）。`PromptAsync` 在空闲时对一眼，
+  不一致就 `RollForwardPiVersionAsync`：移出 `_live`、dispose、重新 `EnsureLive`——resume 同一个
+  Pi 会话文件，历史不丢。只在空闲时做，不会把一轮半路掐断。
+- **升级前先问**：原来一检测到有对话在跑就直接拒绝。现在前端看 `app.sessions` 里的 `working`，
+  有在跑的就弹确认（「停下并升级」/「等它跑完」），确认后发 `{type:'upgrade_pi', stopRunning:true}`；
+  Core 里 `StopAllForUpgradeAsync` 先给每个在跑的 live 发 abort（一等一收尾就会 `PersistTurnAsync`
+  落库），15 秒不理人才收子进程。升级完的版本切换交给上面的懒切换。
+
+测试 `scripts/ui-tests/upgrade-guard.test.js`（5 组）。版本 0.5.7。
+
+**没做**：升级成功后立刻把空闲进程全掐掉（第 ② 层）。懒切换已经覆盖「不会一直用旧版」，
+而立即掐进程要多一条「因升级退出」的专用文案，收益不大。
+
+
 ## STATUS-094：文件面板头部改版（2026-11-27）
 
 用户报：面板头上「上一层」在左、「关闭」在最右，手滑把上一层当成关闭，结果退了一级才发现关不掉。
