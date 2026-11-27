@@ -1,5 +1,18 @@
 # 进度
 
+## STATUS-089：git 探测在服务账户下失效（2026-11-27，装 0.5.0 后复现）
+
+现象：装上 0.5.0 之后，界面上看不到分支胶囊。
+
+- 装的这一版功能都在：`SevenStation.Core.exe --git-status E:/Dev/SevenStation` 在用户会话里跑能出 repo:true，
+  前端也有 `branchPill`；但通过页面的 `git_status` 请求回来是 `{repo:false}`。
+- 根因：Core 服务跑在 **LocalSystem**，工作区 owner 是 `BAHAMUTinaBranford`，git 2.35.2 起对
+  「仓库 owner 不是自己」直接拒绝（`detected dubious ownership`），**stdout 空、原因只在 stderr**。
+  旧代码只读 stdout、丢掉 stderr，于是判定「不是仓库」，日志里一条都没有（这就是为什么查不到）。
+- 修：`GitProbe.RunAsync` 给 git 传 `GIT_CONFIG_*` 组的 `safe.directory=*`（只跑 rev-parse / status /
+  for-each-ref，不执行仓库内容）；并且「stdout 空但 stderr 有话」时记一行日志（`not a git repository` 除外，
+  那是正常情况）。
+- 版本升 0.5.1 并重打两个 MSI：**同版本号重装 MSI 不会替换文件**，0.5.0 已经装过就必须换号。
 ## STATUS-088：Pi 一声不吭的时候，界面别假装在干活（2026-11-27）
 
 现象：界面「工作 30620 秒」挂了 8 小时半。查库发现**那一轮实际只干了 4 分钟**：
