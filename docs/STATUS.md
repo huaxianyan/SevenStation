@@ -1,6 +1,24 @@
 # 进度
 
+## STATUS-093：还在跑的一轮，侧栏中途不转了（2026-11-27）
+
+现象（用户先报的）：另一个对话里任务还在进行，左侧那条已经不转。之后那个会话**确实把任务跑完并给了回答**，
+所以不是假状态——是「工作中」被提前放掉了。STATUS-092 修的是相反方向（已结束却还挂着）。
+
+根因在 `CenterHub` 的 `agent_end` 分支：那里直接 `SetStreaming(live, false)`。而 Pi 的 rpc 文档写得很明确
+（`docs/rpc.md`）：「`agent_end` marks the end of one low-level agent run, but retries, overflow recovery,
+compaction, steering, or follow-up work can still follow. Wait for `agent_settled`」——
+`agent_end` 之后重试、上下文溢出恢复、压缩、追加输入、后续工作都可能接着跑，这一段侧栏就误报「没在跑」。
+
+修法：`agent_end` 不再放掉「忙」，一律等 `agent_settled`（Pi 不会自己继续了）。另外 `SetStreaming` 每次变化
+写一行日志（`对话 xxx 开始工作` / `对话 xxx 这次工作结束`），以后再遇到「两处对不上」能直接对时间线，
+不用猜。STATUS-092 加的两件（重连接上时放掉本地旧状态、列表按 `working` 校正）保留。
+
+版本 0.5.5。
+
 ## STATUS-092：侧栏说没在跑、对话里还在转（2026-11-27）
+
+> 这一版只治了「已结束却还挂着」（Core 重启后残留）。真正的「还在跑却不转」是 STATUS-093，那个更常见。
 
 现象：装完 0.5.3（Core 重启过）之后，某条会话在界面上还显示「进行中」，侧栏那条却不转。
 

@@ -514,6 +514,8 @@ public sealed class CenterHub
     {
         if (live.Streaming == value) return;
         live.Streaming = value;
+        // 状态错乱时（侧栏说没在跑、对话里还在转）只有这条日志能对上时间线。
+        Log.Write($"对话 {live.Conversation.Id} {(value ? "开始工作" : "这次工作结束")}");
         BroadcastConversations();
     }
 
@@ -1910,9 +1912,9 @@ public sealed class CenterHub
             }
             else if (name == "agent_end")
             {
-                // 一次运行结束。只借它把「忙」标识放掉，排队交给下面的 agent_settled，
-                // 两个事件都会来，都触发会把整队一次送完。
-                SetStreaming(live, false);
+                // 这里**不**放掉「忙」。agent_end 只结束一次底层 run，重试、溢出恢复、压缩、
+                // steering、follow-up 都可能接着来（Pi 的 rpc 文档明写），中间这一段侧栏会误报「没在跑」，
+                // 而实际上下一段还在干活。判「Pi 不会自己继续了」只看 agent_settled。
             }
             else if (name == "agent_settled")
             {
