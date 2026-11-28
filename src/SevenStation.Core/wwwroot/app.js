@@ -6288,6 +6288,9 @@ function submitPrompt() {
   }
 
   send(message);
+  // 刚发的对话会被顶到侧栏最前：列表也回到顶部，不必自己滚上去找（老对话翻在下面时尤其明显）。
+  app.pendingListTop = true;
+  el.sessionList.scrollTop = 0;
   el.input.value = '';
   // 发出去了就不算草稿，切回来别再冒出来。
   app.drafts.delete(session.key);
@@ -6704,6 +6707,11 @@ function dispatch(message) {
       }
       syncStreamingFromList(app.sessions);
       renderSessionList();
+      // 重建列表不会自己回顶，刚发过消息就补一次：不然落在下面的老对话上看不到自己那条。
+      if (app.pendingListTop) {
+        app.pendingListTop = false;
+        el.sessionList.scrollTop = 0;
+      }
       break;
 
     case 'conversation_saved':
