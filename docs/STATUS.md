@@ -1,5 +1,28 @@
 # 进度
 
+## STATUS-099：通知弹不出来，以及那个不属于本项目的 identifier（2026-11-28）
+
+用户装了 0.5.10 试通知，系统里一点动静都没有。
+
+查证：先用同一个 AUMID 手工发一条 toast，被系统丢掉——注册表
+`HKCU\...\Notifications\Settings` 下根本没生成这个应用的通知项，说明 Windows 不认这个身份。
+根因是 **AUMID 必须写在开始菜单快捷方式上**（`System.AppUserModel.ID`），只在
+`HKCU\Software\Classes\AppUserModelId` 注册是不够的；而我们的快捷方式是一个 1031 字节的空壳 lnk。
+
+顺带发现 `tauri.conf.json` 里的 `identifier` 是 `moe.aruru.sevenstation`——2026-11-18 搭 Tauri 壳时的占位值，
+跟本项目没有关系。通知上线把它暴露到了系统设置里，用户要求改成 `com.neko7ina.windowssevenstation`
+（Control 跟着改成 `com.neko7ina.windowssevenstation.control`）。
+
+- 安装器 `installer/client/SevenStation.wxs`：两个快捷方式加
+  `<ShortcutProperty Key="System.AppUserModel.ID" Value="com.neko7ina.windowssevenstation" />`，
+  构建后 `MsiShortcutProperty` 表里能读到这两行。
+- 壳的 `notify_done` 加日志：`通知：已弹出` / `通知：窗口有焦点，不打扰` / `通知：弹出失败 …`，
+  下次不弹时直接看 `%LOCALAPPDATA%\SevenStation\logs\client.log` 就能判断卡在哪一环。
+- 删掉手动注册的 `moe.aruru.sevenstation` 身份。
+
+版本 0.5.11。**注意**：identifier 变了等于换了应用身份，必须重装一次才生效。
+
+
 ## STATUS-098：跑完一轮弹系统通知（2026-11-28）
 
 用户要求：客户端不在最前面、或者窗口没有焦点时，一轮工作完成要弹 Windows 通知。

@@ -374,18 +374,21 @@ fn open_url(url: String) -> Result<(), String> {
 /// 判断在壳里做，页面那边不用自己猜窗口状态；浏览器里打开时没有壳，这条路径根本不会被调到。
 #[tauri::command]
 fn notify_done(app: tauri::AppHandle, title: String, body: String) -> Result<bool, String> {
-    if let Some(window) = app.get_webview_window("main") {
-        if window.is_focused().unwrap_or(false) {
-            return Ok(false);
-        }
+    let focused = app
+        .get_webview_window("main")
+        .and_then(|window| window.is_focused().ok())
+        .unwrap_or(false);
+    if focused {
+        log("通知：窗口有焦点，不打扰");
+        return Ok(false);
     }
 
-    app.notification()
-        .builder()
-        .title(title)
-        .body(body)
-        .show()
-        .map_err(|error| format!("弹通知失败：{error}"))?;
+    // 弹不出通知时只能靠这一行日志判断卡在哪：AUMID 没注册、系统关了通知、专注助手都会静默丢掉。
+    match app.notification().builder().title(&title).body(&body).show() {
+        Ok(()) => log(&format!("通知：已弹出（{title}）")),
+        Err(error) => log(&format!("通知：弹出失败 {error}")),
+    }
+
     Ok(true)
 }
 

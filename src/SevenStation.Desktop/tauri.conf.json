@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SevenStation",
-  "version": "0.5.10",
-  "identifier": "moe.aruru.sevenstation",
+  "version": "0.5.11",
+  "identifier": "com.neko7ina.windowssevenstation",
   "build": {
     "frontendDist": "dist"
   },

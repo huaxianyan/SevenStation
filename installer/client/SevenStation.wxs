@@ -69,8 +69,14 @@
     </Component>
 
     <Component Id="Shortcuts" Directory="ProgramMenuFolder" Guid="a7d5e2b8-3f14-4c96-8bd2-51c7f0a9e263">
-      <Shortcut Id="MenuShortcut" Name="Seven Station" Target="[#ClientExe]" WorkingDirectory="INSTALLFOLDER" />
-      <Shortcut Id="DesktopShortcut" Name="SevenStation" Directory="DesktopFolder" Target="[#ClientExe]" WorkingDirectory="INSTALLFOLDER" />
+      <!-- 通知要能弹出来，快捷方式上必须带这个 ID：Windows 只认「有应用身份的 toast」，
+           光在注册表登记 AppUserModelId 不够（试过，系统直接把通知丢掉）。 -->
+      <Shortcut Id="MenuShortcut" Name="Seven Station" Target="[#ClientExe]" WorkingDirectory="INSTALLFOLDER">
+        <ShortcutProperty Key="System.AppUserModel.ID" Value="com.neko7ina.windowssevenstation" />
+      </Shortcut>
+      <Shortcut Id="DesktopShortcut" Name="SevenStation" Directory="DesktopFolder" Target="[#ClientExe]" WorkingDirectory="INSTALLFOLDER">
+        <ShortcutProperty Key="System.AppUserModel.ID" Value="com.neko7ina.windowssevenstation" />
+      </Shortcut>
       <RemoveFolder Id="RemoveMenuShortcut" On="uninstall" />
     </Component>
 
