@@ -1,6 +1,6 @@
 [package]
 name = "sevenstation-control"
-version = "0.5.7"
+version = "0.5.8"
 description = "Seven Station 中心控制台"
 edition = "2021"
 rust-version = "1.88"

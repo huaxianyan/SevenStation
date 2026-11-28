@@ -3005,6 +3005,14 @@ body.dragging .composer-box {
 
 .model-list { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 6px; overflow-y: auto; }
 
+.model-hint {
+  margin: 2px 0 6px;
+  padding: 0 10px;
+  font-size: calc(11.5px * var(--fs-ui));
+  line-height: 1.5;
+  color: var(--text-mute);
+}
+
 .model-group {
   padding: 8px 10px 3px;
   font-size: calc(12px * var(--fs-ui));

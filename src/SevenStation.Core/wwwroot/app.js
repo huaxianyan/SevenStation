@@ -2511,7 +2511,10 @@ function renderHeader() {
 
 /* -------------------------------- 模型选择 -------------------------------- */
 
-const modelState = { open: false, provider: '全部', query: '', focus: 0, rows: [] };
+const modelState = { open: false, provider: '常用', query: '', focus: 0, rows: [] };
+
+/** 「常用」最多摆几个：超出去的从末尾挤掉。跟 Core 里的 RecentModelLimit 对齐。 */
+const RECENT_LIMIT = 7;
 
 function modelEntries() {
   const session = current();
@@ -2606,13 +2609,48 @@ function renderModelPill() {
   el.modelPill.title = route ? route + '/' + model.id : String(model.id || '');
 }
 
+/**
+ * 最近选过的模型，最近的在前，最多 7 个。当前模型不在名单里（新建对话沿用了默认模型、
+ * 或者刚在别的设备上选过）就先把它顶上——第一眼得能看见自己在用哪个。
+ * 名单里的模型在 Pi 那边被删掉时就跳过，不留一行点不动的。
+ */
+function recentModels(entries) {
+  const session = current();
+  const recent = (session && session.recentModels) || [];
+  const byKey = new Map();
+  for (const entry of entries) {
+    byKey.set((entry.provider || '') + '/' + entry.id, entry);
+  }
+
+  const rows = [];
+  const seen = new Set();
+  const chosen = session && session.state && session.state.model;
+  const chosenKey = chosen ? (chosen.provider || '') + '/' + chosen.id : '';
+  if (chosenKey && byKey.has(chosenKey)) {
+    rows.push(byKey.get(chosenKey));
+    seen.add(chosenKey);
+  }
+
+  for (const item of recent) {
+    if (rows.length >= RECENT_LIMIT) break;
+    const key = (item.provider || '') + '/' + (item.id || '');
+    if (seen.has(key)) continue;
+    const entry = byKey.get(key);
+    if (!entry) continue;
+    rows.push(entry);
+    seen.add(key);
+  }
+
+  return rows;
+}
+
 function modelProviders(entries) {
   const counts = new Map();
   for (const entry of entries) {
     const provider = entry.provider || '其它';
     counts.set(provider, (counts.get(provider) || 0) + 1);
   }
-  return [['全部', entries.length], ...counts];
+  return [['常用', recentModels(entries).length], ...counts];
 }
 
 function visibleModels() {
@@ -2624,7 +2662,11 @@ function visibleModels() {
       return hay.includes(query);
     });
   }
-  if (modelState.provider === '全部') return entries;
+  if (modelState.provider === '常用') {
+    const rows = recentModels(entries);
+    // 还没选过：先把全部按原来的分组摆出来，顶上留一句说明，别给一张空列表。
+    return rows.length ? rows : entries;
+  }
   return entries.filter((entry) => (entry.provider || '其它') === modelState.provider);
 }
 
@@ -2644,7 +2686,7 @@ function buildModelRow(entry, index, selectedKey) {
   name.textContent = modelName(entry);
   const meta = document.createElement('span');
   meta.className = 'model-row-meta';
-  const provider = modelState.provider === '全部' && !modelState.query
+  const provider = modelState.provider === '常用' && !modelState.query
     ? (entry.provider || '') + ' · '
     : '';
   meta.textContent = provider + modelMeta(entry);
@@ -2748,10 +2790,20 @@ function renderModelPanel() {
     empty.textContent = '没有匹配的模型';
     list.appendChild(empty);
   } else {
+    const recents = recentModels(entries);
+    // 常用是按「最近用过」排的，再套一层 route 分组反而看不懂顺序。
+    const grouped = modelState.provider !== '常用' || recents.length === 0;
+    if (modelState.provider === '常用' && !modelState.query && recents.length === 0) {
+      const hint = document.createElement('p');
+      hint.className = 'model-hint';
+      hint.textContent = '还没有常用记录，选过的模型会自动出现在这里。';
+      list.appendChild(hint);
+    }
+
     let lastRoute = null;
     rows.forEach((entry, index) => {
       const route = routeOf(entry);
-      if (route && route !== lastRoute) {
+      if (grouped && route && route !== lastRoute) {
         const head = document.createElement('div');
         head.className = 'model-group';
         head.textContent = route;
@@ -2796,6 +2848,12 @@ function renderModelPanel() {
 function pickModel(entry) {
   const session = current();
   if (!session) return;
+
+  // 本地先把它挪到常用最前面：选中后面板立刻重开也是新顺序，不用等 Core 往返。
+  const key = (entry.provider || '') + '/' + entry.id;
+  const rest = (session.recentModels || []).filter((item) => (item.provider || '') + '/' + item.id !== key);
+  session.recentModels = [{ provider: entry.provider, id: entry.id }, ...rest].slice(0, RECENT_LIMIT);
+
   send({ type: 'set_model', key: session.key, provider: entry.provider, modelId: entry.id });
   closeModelPanel();
 }
@@ -3058,7 +3116,7 @@ function openModelPanel() {
   modelState.open = true;
   modelState.focus = 0;
   modelState.query = '';
-  modelState.provider = '全部';
+  modelState.provider = '常用';
   if (el.modelPanel.parentElement !== document.body) {
     document.body.appendChild(el.modelPanel);
   }
@@ -6867,6 +6925,7 @@ function onModels(message) {
   if (!session) return;
   session.models = message.data || null;
   session.levels = message.thinkingLevels || null;
+  session.recentModels = Array.isArray(message.recent) ? message.recent : [];
   if (message.key === app.currentKey) {
     renderHeader();
     // 设置页正开着的话，把「模型目录」那一行的时间换掉。

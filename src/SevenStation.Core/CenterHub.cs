@@ -2508,7 +2508,44 @@ public sealed class CenterHub
             ["modelId"] = message["modelId"]?.GetValue<string>(),
         });
         await CaptureSettingsAsync(live);
+        RememberRecentModel(
+            message["provider"]?.GetValue<string>() ?? string.Empty,
+            message["modelId"]?.GetValue<string>() ?? string.Empty);
         sender.Send(Settings(RequireConversation(id)));
+    }
+
+    /// <summary>
+    /// 最近用过的模型，最近的在最前，最多 <see cref="RecentModelLimit"/> 个。
+    /// 面板左栏第一项「常用」就是它：常在三四个模型之间来回切，没有这份短名单每次都得翻半天。
+    /// 选过的重复选只往前挪、不占新位置；存 settings 所以桌面和手机看到的是同一份。
+    /// </summary>
+    private JsonArray RecentModels()
+    {
+        return Parse(_store.GetSetting("recentModels"))?["models"] as JsonArray ?? new JsonArray();
+    }
+
+    private void RememberRecentModel(string provider, string modelId)
+    {
+        if (string.IsNullOrWhiteSpace(modelId)) return;
+
+        var next = new JsonArray
+        {
+            new JsonObject { ["provider"] = provider, ["id"] = modelId },
+        };
+        foreach (var node in RecentModels())
+        {
+            if (next.Count >= RecentModelLimit) break;
+            if (node is not JsonObject item) continue;
+            if (item["id"]?.GetValue<string>() == modelId
+                && (item["provider"]?.GetValue<string>() ?? string.Empty) == provider)
+            {
+                continue;   // 已经在名单里：这次只是回到最前面，不重复占位。
+            }
+
+            next.Add(item.DeepClone());
+        }
+
+        _store.SetSetting("recentModels", new JsonObject { ["models"] = next }.ToJsonString());
     }
 
     private async Task SetThinkingAsync(string id, JsonObject message, CenterConnection sender)
@@ -2613,6 +2650,9 @@ public sealed class CenterHub
         }
     }
 
+    /// <summary>「常用」最多摆几个，超出去的从末尾挤掉。</summary>
+    private const int RecentModelLimit = 7;
+
     private async Task SendModelsAsync(string id, CenterConnection sender, bool force = false)
     {
         RequireConversation(id);
@@ -2632,6 +2672,7 @@ public sealed class CenterHub
                 ["key"] = id,
                 ["data"] = cachedModels!.DeepClone(),
                 ["thinkingLevels"] = cachedLevels!.DeepClone(),
+                ["recent"] = RecentModels().DeepClone(),
             });
             return;
         }
@@ -2653,6 +2694,7 @@ public sealed class CenterHub
         {
             ["type"] = "models",
             ["key"] = id,
+            ["recent"] = RecentModels().DeepClone(),
             ["data"] = modelData?.DeepClone(),
             ["thinkingLevels"] = levelData?.DeepClone(),
         });
