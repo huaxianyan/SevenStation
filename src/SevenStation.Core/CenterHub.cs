@@ -2686,16 +2686,61 @@ public sealed class CenterHub
         }
 
         var live = EnsureLive(RequireConversation(id));
-        var models = await live.Session.SendAsync(new JsonObject { ["type"] = "get_available_models" });
-        var levels = await live.Session.SendAsync(new JsonObject { ["type"] = "get_available_thinking_levels" });
-        var modelData = Data(models);
-        var levelData = Data(levels);
+
+        // Pi 正在跑一轮时问它要清单，这条命令会排到这一轮结束才被处理——界面就一直「正在刷新」，
+        // 而且默认超时是 120 秒。这种时候用手里的缓存回，并说清为什么没换新的。
+        if (live.Streaming && cachedModels is not null && cachedLevels is not null)
+        {
+            sender.Send(new JsonObject
+            {
+                ["type"] = "models",
+                ["key"] = id,
+                ["data"] = cachedModels.DeepClone(),
+                ["thinkingLevels"] = cachedLevels.DeepClone(),
+                ["recent"] = RecentModels().DeepClone(),
+            });
+            sender.Send(new JsonObject
+            {
+                ["type"] = "notice",
+                ["kind"] = "info",
+                ["text"] = "这一轮还在跑，模型清单先用上次的；等它结束再点刷新。",
+            });
+            return;
+        }
+
+        JsonObject? modelData = null;
+        JsonObject? levelData = null;
+        try
+        {
+            // 别跟着 120 秒的通用超时干等：Pi 不理人时界面得马上有个交代。
+            var models = await live.Session.SendAsync(
+                new JsonObject { ["type"] = "get_available_models" }, TimeSpan.FromSeconds(20));
+            var levels = await live.Session.SendAsync(
+                new JsonObject { ["type"] = "get_available_thinking_levels" }, TimeSpan.FromSeconds(20));
+            modelData = Data(models);
+            levelData = Data(levels);
+        }
+        catch (Exception error)
+        {
+            Log.Write($"取模型清单失败（{id}）：{error.Message}");
+            sender.Send(new JsonObject
+            {
+                ["type"] = "notice",
+                ["kind"] = "warning",
+                ["text"] = "模型清单没取到，等这一轮结束再点一次刷新。",
+            });
+        }
 
         if (modelData is not null && levelData is not null)
         {
             _store.SetSetting("models", modelData.ToJsonString());
             _store.SetSetting("thinkingLevels", levelData.ToJsonString());
             _store.SetSetting("modelsAt", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString());
+        }
+        else
+        {
+            modelData = cachedModels;
+            levelData = cachedLevels;
         }
 
         sender.Send(new JsonObject

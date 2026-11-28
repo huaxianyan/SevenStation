@@ -2516,6 +2516,9 @@ const modelState = { open: false, provider: '常用', query: '', focus: 0, rows:
 /** 常用名单是全局的（跨对话、跨设备）：一个地方变了，所有面板看到的都得是同一份。 */
 app.recentModels = app.recentModels || [];
 
+/** 点刷新之后等多久放弃：Core 那边问 Pi 最多等 20 秒，这里再留点余量。 */
+let modelRefreshTimer = 0;
+
 /** 「常用」最多摆几个：超出去的从末尾挤掉。跟 Core 里的 RecentModelLimit 对齐。 */
 const RECENT_LIMIT = 7;
 
@@ -2838,6 +2841,15 @@ function renderModelPanel() {
     refresh.disabled = true;
     refresh.textContent = '正在刷新…';
     send({ type: 'list_models', key: session.key, force: true });
+
+    // 命令发出去就没人管了：Core 那边问不到 Pi 时会回一条消息，但连接断了就什么都不回来。
+    // 超时把按钮放回来，别让面板永远停在「正在刷新…」。
+    clearTimeout(modelRefreshTimer);
+    modelRefreshTimer = setTimeout(() => {
+      if (!modelState.open) return;
+      toast('模型清单还没回来，等这一轮结束再点刷新。', 'info');
+      renderModelPanel();
+    }, 25000);
   });
 
   const count = document.createElement('span');
@@ -6934,9 +6946,12 @@ function onModels(message) {
   if (!session) return;
   session.models = message.data || null;
   session.levels = message.thinkingLevels || null;
+  clearTimeout(modelRefreshTimer);
   if (Array.isArray(message.recent)) app.recentModels = message.recent;
   if (message.key === app.currentKey) {
     renderHeader();
+    // 面板开着就重画：刷新按钮的「正在刷新…」靠这一次重画复位。
+    if (modelState.open) renderModelPanel();
     // 设置页正开着的话，把「模型目录」那一行的时间换掉。
     if (app.modelsAt) renderPage('settings');
   }
