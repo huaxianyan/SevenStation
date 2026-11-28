@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SevenStation.Control",
   "version": "0.5.11",
-  "identifier": "com.neko7ina.windowssevenstation.control",
+  "identifier": "com.neko7ina.sevenstation.control.windows",
   "build": {
     "frontendDist": "dist"
   },

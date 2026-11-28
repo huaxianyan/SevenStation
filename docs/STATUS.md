@@ -10,11 +10,11 @@
 `HKCU\Software\Classes\AppUserModelId` 注册是不够的；而我们的快捷方式是一个 1031 字节的空壳 lnk。
 
 顺带发现 `tauri.conf.json` 里的 `identifier` 是 `moe.aruru.sevenstation`——2026-11-18 搭 Tauri 壳时的占位值，
-跟本项目没有关系。通知上线把它暴露到了系统设置里，用户要求改成 `com.neko7ina.windowssevenstation`
-（Control 跟着改成 `com.neko7ina.windowssevenstation.control`）。
+跟本项目没有关系。通知上线把它暴露到了系统设置里，用户要求改成 `com.neko7ina.sevenstation.windows`
+（Control 跟着改成 `com.neko7ina.sevenstation.control.windows`）。
 
 - 安装器 `installer/client/SevenStation.wxs`：两个快捷方式加
-  `<ShortcutProperty Key="System.AppUserModel.ID" Value="com.neko7ina.windowssevenstation" />`，
+  `<ShortcutProperty Key="System.AppUserModel.ID" Value="com.neko7ina.sevenstation.windows" />`，
   构建后 `MsiShortcutProperty` 表里能读到这两行。
 - 壳的 `notify_done` 加日志：`通知：已弹出` / `通知：窗口有焦点，不打扰` / `通知：弹出失败 …`，
   下次不弹时直接看 `%LOCALAPPDATA%\SevenStation\logs\client.log` 就能判断卡在哪一环。
