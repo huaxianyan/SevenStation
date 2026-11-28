@@ -7007,26 +7007,20 @@ function dropStaleStreaming() {
 /**
  * 一轮跑完时提醒一声：窗口有焦点说明人就在跟前，别打扰；切去干别的或者最小化了才弹。
  * 判定在壳里做（看窗口焦点），这里只负责把内容送过去。浏览器里打开时没有壳，直接跳过。
+ * 标题固定说「发生了什么」，正文才说哪个对话——回答内容不进通知，一眼扫过去就知道该看哪条。
  */
 function notifyWorkDone(session, aborted) {
   if (aborted) return; // 自己按的停止，不用再提醒
   const shell = window.__TAURI__ && window.__TAURI__.core;
   if (!shell || typeof shell.invoke !== 'function') return;
 
-  const name = (session.state && session.state.sessionName) || '';
-  const last = [...session.items].reverse().find((item) => item.kind === 'assistant');
-  const text = last
-    ? (last.blocks || [])
-        .filter((block) => block && block.type === 'text')
-        .map((block) => block.text || '')
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    : '';
+  // 名字太长会把正文挤成两行以上；先保住名字，后面的句子丢了也不影响理解。
+  const raw = (session.state && session.state.sessionName) || '新对话';
+  const name = raw.length > 24 ? raw.slice(0, 24) + '…' : raw;
 
   shell.invoke('notify_done', {
-    title: name ? '「' + name + '」这一轮完成了' : '这一轮完成了',
-    body: text ? text.slice(0, 90) : '发一句话接着聊。',
+    title: '工作完成',
+    body: '「' + name + '」的任务已完成。',
   }).catch(() => {});
 }
 

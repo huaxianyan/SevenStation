@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>SevenStation.Core</AssemblyName>
     <RootNamespace>SevenStation.Core</RootNamespace>
-    <Version>0.5.13</Version>
+    <Version>0.5.14</Version>
     <!-- 发布出来的是 GUI 子系统：执行代理由计划任务在登录时拉起，控制台子系统会弹一个 cmd 窗口，
          用户一关窗口代理就被 CTRL_CLOSE 杀掉（任务结果 0xC000013A）。服务与 runner 角色都不需要控制台，
          日志一律写文件；用 dotnet 跑 dll 时输出照旧（那是 dotnet 宿主自己的控制台）。 -->

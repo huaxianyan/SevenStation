@@ -1,6 +1,6 @@
 [package]
 name = "sevenstation-desktop"
-version = "0.5.13"
+version = "0.5.14"
 description = "Seven Station 桌面客户端"
 edition = "2021"
 rust-version = "1.88"
