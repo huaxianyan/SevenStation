@@ -2546,6 +2546,14 @@ public sealed class CenterHub
         }
 
         _store.SetSetting("recentModels", new JsonObject { ["models"] = next }.ToJsonString());
+
+        // 这份名单是全局的：别的对话、别的设备开着的面板也要立刻看到新顺序。
+        // 不带 key，前端当全局数据处理——按对话各存一份的话，两边就会各说各的。
+        Broadcast(new JsonObject
+        {
+            ["type"] = "recent_models",
+            ["items"] = next.DeepClone(),
+        });
     }
 
     private async Task SetThinkingAsync(string id, JsonObject message, CenterConnection sender)

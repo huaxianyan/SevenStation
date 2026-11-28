@@ -1,5 +1,22 @@
 # 进度
 
+## STATUS-097：常用名单在别的对话里选过，这边不更新（2026-11-28）
+
+现象（用户报的）：在 Google 拼音那条对话里选了 3 个模型，那边常用是 3 个，切回 SevenStation 只看得到 2 个。
+
+查库确认 Core 是对的：`settings.recentModels` 里就是 3 条。问题在前端各存了一份：
+`session.recentModels` 挂在会话对象上，只在收到那条会话的 `models` 消息时更新，
+在别的对话选模型时这边什么都收不到——同一份全局数据被缓存成了 N 份快照。
+
+修法：
+
+- 前端改成全局 `app.recentModels`，`onModels` 只做初次填充，`pickModel` 直接改全局。
+- Core 在 `RememberRecentModel` 之后 `Broadcast` 一条 `recent_models`（不带 key，就是全局数据），
+  别的对话、别的设备的面板立刻跟着换。
+
+测试补在 `scripts/ui-tests/model-recent.test.js`（第 9 组：收到广播后名单与面板一起更新）。版本 0.5.9。
+
+
 ## STATUS-096：模型面板的「全部」换成「常用」（2026-11-28）
 
 用户要求：常在三四个模型之间来回切，每次都要在一长串里找，把左栏第一项「全部」换成「常用」。

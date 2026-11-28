@@ -2513,6 +2513,9 @@ function renderHeader() {
 
 const modelState = { open: false, provider: '常用', query: '', focus: 0, rows: [] };
 
+/** 常用名单是全局的（跨对话、跨设备）：一个地方变了，所有面板看到的都得是同一份。 */
+app.recentModels = app.recentModels || [];
+
 /** 「常用」最多摆几个：超出去的从末尾挤掉。跟 Core 里的 RecentModelLimit 对齐。 */
 const RECENT_LIMIT = 7;
 
@@ -2616,7 +2619,7 @@ function renderModelPill() {
  */
 function recentModels(entries) {
   const session = current();
-  const recent = (session && session.recentModels) || [];
+  const recent = app.recentModels || [];
   const byKey = new Map();
   for (const entry of entries) {
     byKey.set((entry.provider || '') + '/' + entry.id, entry);
@@ -2851,8 +2854,8 @@ function pickModel(entry) {
 
   // 本地先把它挪到常用最前面：选中后面板立刻重开也是新顺序，不用等 Core 往返。
   const key = (entry.provider || '') + '/' + entry.id;
-  const rest = (session.recentModels || []).filter((item) => (item.provider || '') + '/' + item.id !== key);
-  session.recentModels = [{ provider: entry.provider, id: entry.id }, ...rest].slice(0, RECENT_LIMIT);
+  const rest = (app.recentModels || []).filter((item) => (item.provider || '') + '/' + item.id !== key);
+  app.recentModels = [{ provider: entry.provider, id: entry.id }, ...rest].slice(0, RECENT_LIMIT);
 
   send({ type: 'set_model', key: session.key, provider: entry.provider, modelId: entry.id });
   closeModelPanel();
@@ -6783,6 +6786,12 @@ function dispatch(message) {
       onModels(message);
       break;
 
+    case 'recent_models':
+      // 别的对话或别的设备选过模型：这份名单是全局的，收到就换。
+      app.recentModels = Array.isArray(message.items) ? message.items : [];
+      if (modelState.open) renderModelPanel();
+      break;
+
     case 'git_status': {
       const session = app.byKey.get(message.key);
       if (session) {
@@ -6925,7 +6934,7 @@ function onModels(message) {
   if (!session) return;
   session.models = message.data || null;
   session.levels = message.thinkingLevels || null;
-  session.recentModels = Array.isArray(message.recent) ? message.recent : [];
+  if (Array.isArray(message.recent)) app.recentModels = message.recent;
   if (message.key === app.currentKey) {
     renderHeader();
     // 设置页正开着的话，把「模型目录」那一行的时间换掉。

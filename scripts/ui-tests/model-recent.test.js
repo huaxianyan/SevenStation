@@ -12,7 +12,7 @@ const { window } = boot(`
     });
     const session = app.byKey.get('c-m');
     session.models = { models: models };
-    session.recentModels = recent;
+    app.recentModels = recent;
     app.currentKey = 'c-m';
   };
   window.__open = () => openModelPanel();
@@ -33,7 +33,8 @@ const { window } = boot(`
     if (row) row.click();
     return Boolean(row);
   };
-  window.__recent = () => (app.byKey.get('c-m').recentModels || []).map((item) => item.id);
+  window.__recent = () => (app.recentModels || []).map((item) => item.id);
+  window.__push = (items) => dispatch({ type: 'recent_models', items: items });
   window.__providerClick = (name) => {
     const node = Array.from(document.querySelectorAll('.model-provider'))
       .find((item) => item.textContent.includes(name));
@@ -124,5 +125,13 @@ ok(window.__groups().length > 0, '回落时按 provider 分组');
 window.__seed(many, recentOf([['magpie', 'gone/model'], ['google', 'gemini-3-pro']]), null);
 window.__open();
 ok(JSON.stringify(window.__rows()) === JSON.stringify(['gemini-3-pro']), '删掉的模型不出现在常用里：' + JSON.stringify(window.__rows()));
+
+// 9. 别的对话（或别的设备）改了名单：广播过来就换，不用重开面板
+window.__seed(many, recentOf([['google', 'gemini-3-pro']]), { provider: 'google', id: 'gemini-3-pro' });
+window.__open();
+ok(window.__rows().length === 1, '先只有一条：' + JSON.stringify(window.__rows()));
+window.__push(recentOf([['magpie', 'zhipu/glm-4.6'], ['google', 'gemini-3-pro']]));
+ok(window.__rows().includes('zhipu/glm-4.6') && window.__rows().length === 2, '收到广播后立刻跟着换：' + JSON.stringify(window.__rows()));
+ok(window.__recent().length === 2, '全局名单也跟着更新：' + window.__recent().length);
 
 done();
