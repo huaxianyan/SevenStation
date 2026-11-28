@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use serde_json::{json, Value};
 use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_notification::NotificationExt;
 
 /// 壳自己的东西都放这个目录：Seven Station Core 地址、令牌、窗口位置、日志。
 /// 设了 `SEVENSTATION_PROFILE` 就换成 `SevenStation-<档案>`，测试不碰正在用的那份配置。
@@ -369,6 +370,25 @@ fn open_url(url: String) -> Result<(), String> {
     open_via_shell(target).map_err(|error| format!("打不开浏览器：{error}"))
 }
 
+/// 一轮工作跑完时提醒一声：只在人没看着这个窗口时才弹（切去干别的就不会错过）。
+/// 判断在壳里做，页面那边不用自己猜窗口状态；浏览器里打开时没有壳，这条路径根本不会被调到。
+#[tauri::command]
+fn notify_done(app: tauri::AppHandle, title: String, body: String) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_focused().unwrap_or(false) {
+            return Ok(false);
+        }
+    }
+
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|error| format!("弹通知失败：{error}"))?;
+    Ok(true)
+}
+
 /// 在资源管理器里打开文件「所在的位置」，并把文件选中。
 /// 与 `reveal_path` 的区别：那个是直接打开（文件交给默认程序），这个是打开目录定位到它。
 #[tauri::command]
@@ -461,12 +481,14 @@ fn main() {
 
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             pick_folder,
             reveal_path,
             reveal_in_explorer,
             copy_file,
             open_url,
+            notify_done,
             center_local,
             client_config_get,
             client_config_save

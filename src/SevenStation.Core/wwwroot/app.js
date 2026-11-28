@@ -6989,6 +6989,32 @@ function dropStaleStreaming() {
   if (touched) renderComposerState();
 }
 
+/**
+ * 一轮跑完时提醒一声：窗口有焦点说明人就在跟前，别打扰；切去干别的或者最小化了才弹。
+ * 判定在壳里做（看窗口焦点），这里只负责把内容送过去。浏览器里打开时没有壳，直接跳过。
+ */
+function notifyWorkDone(session, aborted) {
+  if (aborted) return; // 自己按的停止，不用再提醒
+  const shell = window.__TAURI__ && window.__TAURI__.core;
+  if (!shell || typeof shell.invoke !== 'function') return;
+
+  const name = (session.state && session.state.sessionName) || '';
+  const last = [...session.items].reverse().find((item) => item.kind === 'assistant');
+  const text = last
+    ? (last.blocks || [])
+        .filter((block) => block && block.type === 'text')
+        .map((block) => block.text || '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : '';
+
+  shell.invoke('notify_done', {
+    title: name ? '「' + name + '」这一轮完成了' : '这一轮完成了',
+    body: text ? text.slice(0, 90) : '发一句话接着聊。',
+  }).catch(() => {});
+}
+
 function onProcessExit(message) {
   if (stopPending && stopPending.key === message.key) {
     stopPending.handle.update('已停止');
@@ -7159,6 +7185,7 @@ function onEvent(key, event) {
       const last = [...session.items].reverse().find((candidate) => candidate.kind === 'assistant');
       if (last && key === app.currentKey) schedule(last.id);
       if (key === app.currentKey) renderComposerState();
+      notifyWorkDone(session, event.aborted === true);
       send({ type: 'refresh_stats', key });
       send({ type: 'list_conversations' });
       // 一轮干完可能改过文件：分支胶囊上的改动数跟着更新。

@@ -12,6 +12,7 @@
     "allow-reveal-in-explorer",
     "allow-copy-file",
     "allow-open-url",
+    "allow-notify-done",
     "allow-center-local",
     "allow-client-config-get",
     "allow-client-config-save"
