@@ -384,7 +384,16 @@ fn notify_done(app: tauri::AppHandle, title: String, body: String) -> Result<boo
     }
 
     // 弹不出通知时只能靠这一行日志判断卡在哪：AUMID 没注册、系统关了通知、专注助手都会静默丢掉。
-    match app.notification().builder().title(&title).body(&body).show() {
+    // 必须点名音效：不写 <audio> 时这台机器上是静音弹出的（试过，只有横幅没有声音）。
+    // "Default" 就是系统通知音（ms-winsoundevent:Notification.Default），winrt-notification 认这个名字。
+    match app
+        .notification()
+        .builder()
+        .title(&title)
+        .body(&body)
+        .sound("Default")
+        .show()
+    {
         Ok(()) => log(&format!("通知：已弹出（{title}）")),
         Err(error) => log(&format!("通知：弹出失败 {error}")),
     }

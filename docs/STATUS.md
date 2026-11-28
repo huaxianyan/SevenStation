@@ -1,5 +1,21 @@
 # 进度
 
+## STATUS-100：通知只有横幅、没有声音（2026-11-28）
+
+用户报：通知弹出来了，但一点动静都没有。
+
+先用同一个 AUMID 手工发一条带 `<audio src="ms-winsoundevent:Notification.Default"/>` 的 toast，
+有声音——说明系统与音量都正常，是我们那条通知没点名音效。
+
+`tauri-plugin-notification` 只在显式给了 `sound` 时才写 `<audio>`（`desktop.rs:503`），
+其余情况生成的 XML 没有 audio 元素；这台机器上这种 toast 是静音弹出的。
+修法：`notify_done` 里 `.sound("Default")`。`notify-rust` 会把这个名字交给
+`winrt-notification` 的 `Sound::from_str`，`"Default"` 映射到 `Sound::Default`，
+也就是系统通知音。
+
+版本 0.5.12。
+
+
 ## STATUS-099：通知弹不出来，以及那个不属于本项目的 identifier（2026-11-28）
 
 用户装了 0.5.10 试通知，系统里一点动静都没有。
