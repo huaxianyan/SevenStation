@@ -8,9 +8,11 @@
  * ------------------------------------------------------------------ */
 
 /* 界面偏好：放本地，换设备不跟着走。 */
-const prefs = { interrupt: false };
+const prefs = { interrupt: false, notifyDone: true };
 try {
   prefs.interrupt = localStorage.getItem('sevenstation.interruptCtrlEnter') === '1';
+  // 只有明确存过「关」才关：没存过的（绝大多数）跑完就该被提醒。
+  prefs.notifyDone = localStorage.getItem('sevenstation.notifyDone') !== '0';
 } catch {
   prefs.interrupt = false;
 }
@@ -18,6 +20,7 @@ try {
 function savePrefs() {
   try {
     localStorage.setItem('sevenstation.interruptCtrlEnter', prefs.interrupt ? '1' : '0');
+    localStorage.setItem('sevenstation.notifyDone', prefs.notifyDone ? '1' : '0');
   } catch {
     /* 隐私模式下存不了，本次会话内生效就够。 */
   }
@@ -4304,6 +4307,50 @@ function makeInterruptToggle() {
   return row;
 }
 
+/**
+ * 完成通知的开关：只有桌面客户端会弹（浏览器里没有壳），所以这张卡也只在有壳时出现，
+ * 开关按设备存本机——手机上不显示，也不会跟着 Core 同步到别的机器。
+ */
+function renderNotifyCard() {
+  if (!clientInvoke()) return null;
+
+  const card = makePageCard('通知');
+  const row = document.createElement('div');
+  row.className = 'kv-row kv-row-toggle';
+
+  const left = document.createElement('div');
+  left.className = 'kv-toggle-text';
+  const label = document.createElement('span');
+  label.className = 'kv-toggle-label';
+  label.textContent = '完成时弹系统通知';
+  const note = document.createElement('span');
+  note.className = 'kv-toggle-note';
+  note.textContent = '窗口不在最前时才提醒';
+  left.appendChild(label);
+  left.appendChild(note);
+
+  const toggle = document.createElement('button');
+  toggle.className = 'switch' + (prefs.notifyDone ? ' is-on' : '');
+  toggle.type = 'button';
+  toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-checked', prefs.notifyDone ? 'true' : 'false');
+  toggle.setAttribute('aria-label', '完成时弹系统通知');
+  const knob = document.createElement('span');
+  knob.className = 'switch-knob';
+  toggle.appendChild(knob);
+  toggle.addEventListener('click', () => {
+    prefs.notifyDone = !prefs.notifyDone;
+    savePrefs();
+    toggle.classList.toggle('is-on', prefs.notifyDone);
+    toggle.setAttribute('aria-checked', prefs.notifyDone ? 'true' : 'false');
+  });
+
+  row.appendChild(left);
+  row.appendChild(toggle);
+  card.appendChild(row);
+  return card;
+}
+
 function addKeyValues(card, rows) {
   const list = document.createElement('div');
   list.className = 'kv';
@@ -4965,6 +5012,7 @@ function renderSettingsPage() {
 
   // 只有装成桌面客户端时才有本机设置（浏览器里直接打开页面拿不到这个桥）。
   appendCard(renderClientCenterCard);
+  appendCard(renderNotifyCard);
 
   const agent = app.agent;
   const card = makePageCard(agent ? agent.name : 'Agent');
@@ -7011,6 +7059,7 @@ function dropStaleStreaming() {
  */
 function notifyWorkDone(session, aborted) {
   if (aborted) return; // 自己按的停止，不用再提醒
+  if (!prefs.notifyDone) return; // 设置里关掉了
   const shell = window.__TAURI__ && window.__TAURI__.core;
   if (!shell || typeof shell.invoke !== 'function') return;
 
