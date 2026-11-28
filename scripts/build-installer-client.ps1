@@ -44,16 +44,24 @@ $exe = Join-Path $buildDir "SevenStation.exe"
 if (-not (Test-Path $exe)) { throw "没有编译产物：$exe" }
 
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
+# 与 Core 那边同理：MSI 只作 exe 的 payload，发布出去的是 setup.exe（图标可控）。
+$msiDir = Join-Path $root "work/msi"
+New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
 $license = Join-Path $root "installer/license.rtf"
 $name = "SevenStation-win-x64-$version"
-$msi = Join-Path $dist "$name.msi"
+$msi = Join-Path $msiDir "$name.msi"
 Remove-Item $msi -Force -ErrorAction SilentlyContinue
-Remove-Item "$msi.sha256" -Force -ErrorAction SilentlyContinue
 Remove-Item "$msi.wixpdb" -Force -ErrorAction SilentlyContinue
 
-# dist 里只留当前版本的包：以前的老版本留着，装的时候很容易点错。
-Get-ChildItem $dist -Filter "*-win-x64-*.msi*" | Where-Object { $_.Name -notlike "*$version*" } | Remove-Item -Force -ErrorAction SilentlyContinue
-Get-ChildItem $dist -Filter "*-win-x64-*.wixpdb" | Where-Object { $_.Name -notlike "*$version*" } | Remove-Item -Force -ErrorAction SilentlyContinue
+$setup = "SevenStation-Setup-$version"
+$setupExe = Join-Path $dist "$setup.exe"
+Remove-Item $setupExe -Force -ErrorAction SilentlyContinue
+Remove-Item "$setupExe.sha256" -Force -ErrorAction SilentlyContinue
+
+# dist 里只留当前版本的安装程序。
+Get-ChildItem $dist -File | Where-Object {
+    $_.Name -match '^SevenStation.*\.(msi|wixpdb|exe|sha256)$' -and $_.Name -notlike "*$version*"
+} | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Push-Location (Split-Path -Parent $installer)
 try {
@@ -66,16 +74,28 @@ try {
     Pop-Location
 }
 
+Push-Location (Split-Path -Parent $installer)
+try {
+    & $wix build Bundle.wxs -arch x64 -o $setupExe `
+        -ext WixToolset.BootstrapperApplications.wixext `
+        -d "Version=$version" -d "IconFile=$root/src/SevenStation.Desktop/icons/icon.ico" -d "MsiPath=$msi"
+    if ($LASTEXITCODE -ne 0) { throw "打 exe 失败" }
+} finally {
+    Pop-Location
+}
+# wix 会在 exe 旁边留一份 .wixpdb 调试符号，发布面不要它。
+Remove-Item ([System.IO.Path]::ChangeExtension($setupExe, '.wixpdb')) -Force -ErrorAction SilentlyContinue
+
 $sha = [System.Security.Cryptography.SHA256]::Create()
-$stream = [System.IO.File]::OpenRead($msi)
+$stream = [System.IO.File]::OpenRead($setupExe)
 try {
     $hash = ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant()
 } finally {
     $stream.Dispose()
     $sha.Dispose()
 }
-[System.IO.File]::WriteAllText("$msi.sha256", "$hash $name.msi`n")
+[System.IO.File]::WriteAllText("$setupExe.sha256", "$hash $setup.exe`n")
 
-$sizeKb = [math]::Round((Get-Item $msi).Length / 1KB, 0)
-Write-Host "$name.msi $sizeKb KB $($hash.Substring(0, 16))…"
-Write-Host "产物在 $dist"
+$sizeMb = [math]::Round((Get-Item $setupExe).Length / 1MB, 1)
+Write-Host "$setup.exe $sizeMb MB $($hash.Substring(0, 16))…"
+Write-Host "产物在 $dist（MSI 在 $msiDir，只作中间产物）"

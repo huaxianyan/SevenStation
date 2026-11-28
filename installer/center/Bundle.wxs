@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Seven Station Core 的安装程序外壳：里面装的还是同一个 MSI，外面套一个 exe 只为了
+     ① 双击就知道装的是哪个（exe 的图标归我们管，MSI 的文件图标是系统统一给的）；
+     ② 顺手把安装过程收成 Burn 的一套界面。
+     兼容性靠 MSI 自己的 UpgradeCode + AllowSameVersionUpgrades：老版本装过的会被原地升级，
+     不会并出第二份。 -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="Seven Station Core"
+          Version="$(var.Version)"
+          Manufacturer="SevenStation"
+          UpgradeCode="02bdc458-1a4e-4d72-96e1-9c6046db670a"
+          IconSourceFile="$(var.IconFile)"
+          AboutUrl="https://github.com/huaxianyan/SevenStation">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl="https://github.com/huaxianyan/SevenStation/blob/main/LICENSE"
+          SuppressOptionsUI="yes" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <!-- 内部界面交给外壳：MSI 自己的向导在 Burn 下不显示。 -->
+      <MsiPackage SourceFile="$(var.MsiPath)" Visible="no" Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

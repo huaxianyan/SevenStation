@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 客户端的安装程序外壳：理由同 Core 的 Bundle.wxs——exe 的图标才是我们能控制的，
+     MSI 在资源管理器里一律显示系统那枚。里面的 MSI 一字未改，升级走它自己的 UpgradeCode。 -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="Seven Station"
+          Version="$(var.Version)"
+          Manufacturer="SevenStation"
+          UpgradeCode="f3515f63-3db8-41ea-a7be-72154a82e9c7"
+          IconSourceFile="$(var.IconFile)"
+          AboutUrl="https://github.com/huaxianyan/SevenStation">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl="https://github.com/huaxianyan/SevenStation/blob/main/LICENSE"
+          SuppressOptionsUI="yes" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <MsiPackage SourceFile="$(var.MsiPath)" Visible="no" Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

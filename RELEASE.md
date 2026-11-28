@@ -18,10 +18,15 @@ Seven Station Core 要靠服务起来、要有开机自启和升级路径，双�
 
 | 包 | 内容 | 命名 |
 | --- | --- | --- |
-| Seven Station Core | MSI：装到 `%ProgramFiles%\SevenStation Core`，注册服务 `SevenStationCore`（自动启动、系统账户），带 Seven Station Control，开始菜单三个快捷方式 | `SevenStationCore-win-x64-<版本>.msi`（约 43 MB） |
-| 客户端 | MSI：装到 `%ProgramFiles%\SevenStation`，开始菜单与桌面快捷方式；第一次打开走引导页填 Seven Station Core 地址与令牌 | `SevenStation-win-x64-<版本>.msi`（约 2.8 MB） |
+| Seven Station Core | 安装程序：装到 `%ProgramFiles%\SevenStation Core`，注册服务 `SevenStationCore`（自动启动、系统账户），带 Seven Station Control，开始菜单三个快捷方式 | `SevenStationCore-Setup-<版本>.exe`（约 44 MB） |
+| 客户端 | 安装程序：装到 `%ProgramFiles%\SevenStation`，开始菜单与桌面快捷方式；第一次打开走引导页填 Seven Station Core 地址与令牌 | `SevenStation-Setup-<版本>.exe`（约 3.8 MB） |
 
-命名规则：`<项目名>-<平台>-<架构>-<版本>.msi`，只用 ASCII 字母、数字、`-` 和 `.`；
+**外层是 exe，里面还是 MSI**（WiX Burn，`installer/*/Bundle.wxs`）。原因：资源管理器给 `.msi` 的文件图标是系统统一那枚，
+MSI 里换图标不生效（两个 msi 的图标提取出来逐像素相同），只有 exe 的图标是我们能控制的——Core 用浅底那枚、
+客户端用深底那枚，放一起才分得开。升级兼容性靠 MSI 自己的 `UpgradeCode` + `AllowSameVersionUpgrades`：
+以前用 MSI 装过的会被原地升级，不会并存第二份。`dist/` 只放 exe，MSI 是中间产物（`work/msi/`）。
+
+命名规则：`<项目名>-Setup-<版本>.exe`，只用 ASCII 字母、数字、`-` 和 `.`；
 校验文件同名加 `.sha256`，内容是 `<哈希> <文件名>`，`sha256sum -c` 能直接读。
 
 - Seven Station Core（含 Seven Station Control）：`powershell -File scripts/build-installer-center.ps1`
@@ -57,7 +62,7 @@ Seven Station Core 要靠服务起来、要有开机自启和升级路径，双�
 5. 建**一个** Release，把这一版的两个包放进同一个发布。标签、标题都是 `v<版本>`：
 
    ```bash
-   gh release create v<版本>      dist/SevenStationCore-win-x64-<版本>.msi      dist/SevenStationCore-win-x64-<版本>.msi.sha256      dist/SevenStation-win-x64-<版本>.msi      dist/SevenStation-win-x64-<版本>.msi.sha256      --verify-tag --title "v<版本>" --notes-file build/release/v<版本>.md
+   gh release create v<版本>      dist/SevenStationCore-Setup-<版本>.exe      dist/SevenStationCore-Setup-<版本>.exe.sha256      dist/SevenStation-Setup-<版本>.exe      dist/SevenStation-Setup-<版本>.exe.sha256      --verify-tag --title "v<版本>" --notes-file build/release/v<版本>.md
    ```
 
    正文 = 发布说明 + `## 构建信息` 表（版本、平台、架构、运行时、安装形态、源码提交、每个产物的 SHA-256），
@@ -69,7 +74,7 @@ Seven Station Core 要靠服务起来、要有开机自启和升级路径，双�
 
 - **标签只有版本号**（`v0.4.0`），不带产品名。一个版本两个包，就一个 Release。
 - **Release 标题就是标签本身**，不加前缀。
-- **产物名**是 `<产品>-win-x64-<版本>.msi` 加同名 `.sha256`，只有 ASCII 字母、数字、`-`、`.`。
+- **产物名**是 `<产品>-Setup-<版本>.exe` 加同名 `.sha256`，只有 ASCII 字母、数字、`-`、`.`。
 - 发布说明按规范分「新功能」与「问题修复」两节，不超过 40 行，链接指向 `/blob/v<版本>/`。
 
 ## 回滚

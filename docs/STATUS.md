@@ -1,5 +1,28 @@
 # 进度
 
+## STATUS-105：安装包改成 setup.exe，图标终于能分开（2026-11-28）
+
+用户反馈（转发自反馈者）：Core 和客户端的安装包图标一样，装的时候分不清「刚才装的是哪个」。
+
+查证结论：**MSI 的文件图标不受我们控制**。两个 MSI 的 `Property` 表里都有 `ARPPRODUCTICON=AppIcon`、
+`Icon` 表里的 ico 也确实不同（Core 用 Control 那枚浅底、客户端用深底），但用 shell 提取两个文件的图标
+逐像素比对——完全相同，都是系统那枚带光盘的默认图标。`ARPPRODUCTICON` 只影响「应用和功能」列表与安装向导。
+
+改法：外层加一层 WiX Burn 的 `setup.exe`（`installer/center/Bundle.wxs`、`installer/client/Bundle.wxs`），
+图标由 bundle 的 `IconSourceFile` 决定——Core 用浅底那枚、客户端用深底那枚，提取出来已经不同（逐像素验证过）。
+
+- 里面的 MSI 一字未改：`UpgradeCode` 固定、`AllowSameVersionUpgrades="yes"`，所以以前用 MSI 装过的
+  会被原地升级，不会并存第二份。
+- `dist/` 只放 `SevenStationCore-Setup-<版本>.exe` 与 `SevenStation-Setup-<版本>.exe` 加 `.sha256`；
+  MSI 退成中间产物（`work/msi/`），发布面不再有 `.msi` 和 `.wixpdb`。
+- 构建脚本各加一段 Burn 输出；需要 `WixToolset.BootstrapperApplications.wixext`（已 `extension add -g`）。
+
+**没验证的**：在本机现有 0.5.16 安装上升级的实际表现（那是用户的生产环境，按约定不动）。
+配置层面兼容性成立，真机升级要用户自己装一次才能确认。
+
+版本 0.5.17。
+
+
 ## STATUS-104：发完消息侧栏不回顶（2026-11-28）
 
 用户报：侧栏往下翻着找老对话，点进去发了内容，侧栏还停在下面，得自己滚回顶部才看得见刚发的对话。
